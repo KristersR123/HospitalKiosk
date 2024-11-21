@@ -4,13 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="styles.css">
-    <title>Welcome to My Kiosk</title>
+    <title>Kiosk Interface</title>
 </head>
 <body>
-    <h1>Hello, this is my Kiosk Project!</h1>
 
-    <p>this is just to see if my GitHub Actions work :)</p>
-
-    <p>Shannon Corbett</p>
+    <div class="container">
+        <div class="header">
+            <img src="logo.png" alt="Hospital Logo">
+            <h1>"Hospital Name"</h1>
+        </div>
+        <div class="input-area">
+            <label for="patient-number">Enter Patient Number</label>
+            <input type="text" id="patient-number" name="patient-number">
+            <button onclick="submitPatientNumber()">Submit</button>
+            <button onclick="oneTimeVisit()">One Time Visitation</button>
+        </div>
+    </div>
+    
 </body>
 </html>
