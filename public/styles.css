@@ -1,3 +1,77 @@
-h1{
-    color: red;
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #0093E9; /* Adjust the background color as needed */
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    width: 80%;
+    max-width: 600px;
+    text-align: center;
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header img {
+    max-width: 100px; /* Adjust size according to your logo */
+}
+
+.header h1 {
+    color: #333333;
+    margin: 10px 0;
+}
+
+.input-area label, .input-area input, .input-area button {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.input-area input {
+    height: 40px;
+    padding: 0 10px;
+    font-size: 16px;
+    border: 2px solid #ccc;
+    border-radius: 5px;
+}
+
+.input-area button {
+    height: 40px;
+    color: #ffffff;
+    background-color: #007BFF;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-top: 20px;
+}
+
+.input-area button:hover {
+    background-color: #0056b3;
+}
+
+
+
+
+
+@media (max-width: 768px) {
+    .container {
+        width: 95%; /* Allows more margin on smaller devices */
+        padding: 15px; /* Slightly less padding to save space */
+    }
+
+    .header img {
+        max-width: 80px; /* Slightly smaller logo on smaller screens */
+    }
+
+    .input-area input, .input-area button {
+        font-size: 14px; /* Smaller font size for smaller devices */
+    }
 }
