@@ -4,6 +4,7 @@ body, html {
     height: 100%;
     display: flex;
     justify-content: center;
+    text-align: center;
     align-items: center;
     background-color: #0093E9; /* Adjust the background color as needed */
     font-family: Arial, sans-serif;
