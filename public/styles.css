@@ -10,68 +10,58 @@ body, html {
 }
 
 .container {
-    width: 80%;
-    max-width: 600px;
-    text-align: center;
+    width: 100%; /* Adjusted width for better spacing */
+    max-width: 1000px; /* Limit maximum width for better readability */
     background-color: #ffffff;
-    padding: 20px;
+    padding: 40px; /* Add padding for spacing */
     border-radius: 10px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-align: center; /* Center all text inside the container */
 }
 
 .header img {
-    max-width: 100px; /* Adjust size according to your logo */
+    max-width: 150px; /* Adjust size according to your logo */
 }
 
 .header h1 {
     color: #333333;
-    margin: 10px 0;
+    margin: 20px 0;
 }
 
-.input-area label, .input-area input, .input-area button {
+.input-area {
+    width: 100%; /* Ensure input area aligns properly */
+    margin-top: 20px;
+}
+
+.input-area label {
     display: block;
-    width: 100%;
-    margin-top: 10px;
+    font-size: 16px;
+    margin-bottom: 10px;
 }
 
 .input-area input {
-    height: 40px;
-    padding: 0 10px;
-    font-size: 16px;
+    width: calc(100% - 20px); /* Make input fully responsive and aligned */
+    height: 50px; /* Increased height for better readability */
+    padding: 0 15px; /* Proper padding for input text */
+    font-size: 18px; /* Increased font size */
     border: 2px solid #ccc;
     border-radius: 5px;
+    box-sizing: border-box; /* Include padding and border in total width */
+    margin-bottom: 20px;
 }
 
 .input-area button {
-    height: 40px;
+    width: 100%; /* Buttons take full width */
+    height: 50px; /* Increased height */
     color: #ffffff;
     background-color: #007BFF;
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    font-size: 16px;
-    margin-top: 20px;
+    font-size: 18px; /* Increased font size */
+    margin-top: 15px;
 }
 
 .input-area button:hover {
     background-color: #0056b3;
-}
-
-
-
-
-
-@media (max-width: 768px) {
-    .container {
-        width: 95%; /* Allows more margin on smaller devices */
-        padding: 15px; /* Slightly less padding to save space */
-    }
-
-    .header img {
-        max-width: 80px; /* Slightly smaller logo on smaller screens */
-    }
-
-    .input-area input, .input-area button {
-        font-size: 14px; /* Smaller font size for smaller devices */
-    }
 }
