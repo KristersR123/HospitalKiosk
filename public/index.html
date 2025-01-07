@@ -6,9 +6,10 @@
 
     <link rel="stylesheet" href="styles.css">
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"></script>
+
+    <!-- Add Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
     <title>Kiosk Interface</title>
 </head>
@@ -18,19 +19,29 @@
     <div class="container">
         <div class="header">
             <img src="images/logo.png" alt="Hospital Logo">
-            <h1>First Aid Fast</h1>
+            <h1>First Aid Fast - Check-in</h1>
         </div>
+
         <div class="input-area">
-            <label for="patient-number">Enter Patient Number</label>
-            <input type="text" id="patient-number" name="patient-number">
-            <button onclick="submitPatientNumber()">Submit</button>
-            <p>Or if visiting once, continue without patient number</p>
-            <button onclick="oneTimeVisit()">One Time Visitation</button>
+            <label for="full-name">Full Name</label>
+            <input type="text" id="full-name" name="full-name" required>
+
+            <label for="dob">Date of Birth</label>
+            <input type="date" id="dob" name="dob" required>
+
+            <label for="gender">Gender</label>
+            <select id="gender" name="gender" required>
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+            </select>
+
+            <button onclick="submitPatientInfo()">Submit</button>
         </div>
     </div>
-
     <!-- JavaScript File -->
-    <script src="app.js"></script>
+    <script src="script.js"></script>
 
 </body>
 </html>
