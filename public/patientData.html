@@ -31,11 +31,11 @@
 }
 
 .categories {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 20px;
     margin-top: 20px;
+    justify-items: center;
 }
 
 .category {
@@ -108,6 +108,22 @@
             <div class="category" onclick="selectCategory('Respiratory Issues')">
                 <img src="images/resp.png" alt="Respiratory Issues">
                 <p>Shortness of breath, asthma, or respiratory distress</p>
+            </div>
+            <div class="category" onclick="selectCategory('Abdominal Issues')">
+                <img src="images/abdominal.png" alt="Abdominal Issues">
+                <p>For severe pain or discomfort in the abdominal region</p>
+            </div>
+            <div class="category" onclick="selectCategory('Minor Cuts')">
+                <img src="images/minor-cuts.png" alt="Minor Cuts">
+                <p>For minor cuts, abrasions, or non-life-threatening bleeding.</p>
+            </div>
+            <div class="category" onclick="selectCategory('Allergies')">
+                <img src="images/allergy.png" alt="Allergies">
+                <p>For reactions involving skin rash, swelling, or other allergy symptons</p>
+            </div>
+            <div class="category" onclick="selectCategory('Infection')">
+                <img src="images/flu.png" alt="Infection">
+                <p>For fever, flu-like symptoms, or other signs of infection</p>
             </div>
         </div>
 

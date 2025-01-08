@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Triage Nurse Kiosk</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+</head>
+<style>
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        text-align: center;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+    th, td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: center;
+    }
+
+    th {
+        background-color: #007bff;
+        color: white;
+    }
+
+    select {
+        padding: 5px;
+    }
+
+    button {
+        padding: 8px 15px;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        cursor: pointer;
+    }
+
+    button:hover {
+        background-color: #218838;
+    }
+
+    .severity-tag {
+        padding: 5px 10px;
+        border-radius: 5px;
+        color: white;
+        font-weight: bold;
+    }
+
+    .red { background-color: #e53935; }
+    .orange { background-color: #ffb300; }
+    .yellow { background-color: #ffeb3b; color: #000; }
+    .green { background-color: #4caf50; }
+    .blue { background-color: #2196f3; }
+</style>
+<body>
+
+    <div class="container">
+        <h1>Triage Nurse Dashboard</h1>
+        <h3>Assign Severity to Patients</h3>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Patient ID</th>
+                    <th>Name</th>
+                    <th>Condition</th>
+                    <th>Select Severity</th>
+                    <th>Confirm</th>
+                </tr>
+            </thead>
+            <tbody id="patient-list">
+                <!-- Patient rows will be dynamically added here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script src="triage.js"></script>
+
+</body>
+</html>

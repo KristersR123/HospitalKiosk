@@ -68,14 +68,15 @@ function submitPatientInfo() {
     });
 }
 
-// Patient selects injury category
 let selectedCategory = null;
+
+// Function to Select a Condition
 function selectCategory(category) {
     selectedCategory = category;
     document.getElementById("selected-category").textContent = `You've Selected: ${category}`;
 }
 
-// Confirm Selection and Save to Firebase
+// Function to Confirm Selection and Assign Queue Number
 function confirmSelection() {
     if (!selectedCategory) {
         alert("Please select a category!");
@@ -89,14 +90,23 @@ function confirmSelection() {
         return;
     }
 
-    database.ref("patients/" + patientID).update({
-        condition: selectedCategory,
-        status: "Waiting for Triage"
-    }).then(() => {
-        console.log("Condition submitted for patient:", patientID);
-        alert("Condition submitted! Please proceed to reception.");
-        window.location.href = "index.html"; // Redirect back to main screen for next patient
-    }).catch(error => {
-        console.error("Error submitting condition:", error);
+    let patientRef = database.ref("patients/" + patientID);
+
+    // Fetch the next available queue number for this condition
+    database.ref("queueNumbers/" + selectedCategory).once("value", (snapshot) => {
+        let queueNumber = snapshot.val() ? snapshot.val() + 1 : 1; // Increment queue number
+
+        // Update queue number in patient record
+        patientRef.update({
+            condition: selectedCategory,
+            status: "Waiting for Triage",
+            queueNumber: queueNumber
+        }).then(() => {
+            alert(`Your condition has been submitted!\nYour queue number: #${queueNumber}`);
+            database.ref("queueNumbers/" + selectedCategory).set(queueNumber); // Store new queue number
+            window.location.href = "index.html"; // Redirect back for next patient
+        }).catch(error => {
+            console.error("Error submitting condition:", error);
+        });
     });
 }
