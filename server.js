@@ -107,6 +107,75 @@ async function adjustWaitTimes(patientID) {
         console.error("❌ Error adjusting wait times:", error);
     }
 }
+app.get("/patient-wait-time/:patientID", async (req, res) => {
+    const { patientID } = req.params;
+
+    try {
+        const patientRef = db.ref(`patients/${patientID}`);
+        const snapshot = await patientRef.once("value");
+
+        if (!snapshot.exists()) {
+            return res.status(404).json({ error: "Patient not found" });
+        }
+
+        const patient = snapshot.val();
+        res.json({ estimatedWaitTime: patient.estimatedWaitTime || "Unknown" });
+    } catch (error) {
+        console.error("❌ Error fetching wait time:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+app.get("/patients-awaiting-triage", async (req, res) => {
+    try {
+        const snapshot = await db.ref("patients").orderByChild("status").equalTo("Awaiting Condition Selection").once("value");
+
+        if (!snapshot.exists()) {
+            return res.status(404).json({ error: "No patients awaiting triage" });
+        }
+
+        const patients = snapshot.val();
+        res.json(patients);
+    } catch (error) {
+        console.error("❌ Error fetching patients awaiting triage:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+app.get("/waitlist", async (req, res) => {
+    try {
+        const snapshot = await db.ref("patients").orderByChild("status").equalTo("Waiting for Doctor").once("value");
+
+        if (!snapshot.exists()) {
+            return res.status(404).json({ error: "No patients in waitlist" });
+        }
+
+        const waitlist = snapshot.val();
+        res.json(waitlist);
+    } catch (error) {
+        console.error("❌ Error fetching waitlist:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// ✅ API: Get Doctor Queue (Patients Waiting for Doctor)
+app.get("/doctor-queue", async (req, res) => {
+    try {
+        const snapshot = await db.ref("patients").orderByChild("status").equalTo("Waiting for Doctor").once("value");
+
+        if (!snapshot.exists()) {
+            return res.status(404).json({ error: "No patients waiting for doctor" });
+        }
+
+        const doctorQueue = snapshot.val();
+        res.json(doctorQueue);
+    } catch (error) {
+        console.error("❌ Error fetching doctor queue:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+
 
 // ✅ API: Accept Patient
 app.post("/accept-patient", async (req, res) => {
