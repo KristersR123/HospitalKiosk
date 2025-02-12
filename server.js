@@ -5,7 +5,7 @@ const cors = require("cors");
 require("dotenv").config();
 
 // ✅ Initialize Firebase Admin SDK
-const serviceAccount = require("./firebase-adminsdk.json"); // 🔹 Replace with your Firebase Admin SDK JSON file
+const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     databaseURL: "https://hospitalkiosk-a92a4-default-rtdb.europe-west1.firebasedatabase.app"
