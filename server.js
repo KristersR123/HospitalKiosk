@@ -153,10 +153,13 @@ app.get('/patient-wait-time/:patientID', async (req, res) => {
 
 app.get("/patients-awaiting-triage", async (req, res) => {
     try {
-        const snapshot = await db.ref("patients").orderByChild("status").equalTo("Awaiting Condition Selection").once("value");
+        const snapshot = await db.ref("patients")
+            .orderByChild("status")
+            .equalTo("Waiting for Triage") // ✅ Ensure this matches Firebase
+            .once("value");
 
         if (!snapshot.exists()) {
-            return res.json([]); // ✅ Return an empty array instead of an error
+            return res.json([]); // ✅ Return empty array if no patients
         }
 
         const patients = [];
