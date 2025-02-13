@@ -108,24 +108,18 @@ async function adjustWaitTimes(patientID) {
     }
 }
 
-
-app.get("/patient-wait-time/:patientID", async (req, res) => {
+app.get('/patient-wait-time/:patientID', async (req, res) => {
     const { patientID } = req.params;
+    const snapshot = await db.ref("patients").orderByChild("patientID").equalTo(patientID).once("value");
 
-    try {
-        const patientRef = db.ref(`patients/${patientID}`);
-        const snapshot = await patientRef.once("value");
-
-        if (!snapshot.exists()) {
-            return res.status(404).json({ error: "Patient not found" });
-        }
-
-        const patient = snapshot.val();
-        res.json({ success: true, estimatedWaitTime: patient.estimatedWaitTime || "Unknown" });
-    } catch (error) {
-        console.error("❌ Error fetching wait time:", error);
-        res.status(500).json({ error: "Internal server error" });
+    if (!snapshot.exists()) {
+        return res.status(404).json({ error: "Patient not found" });
     }
+
+    let patientData;
+    snapshot.forEach(child => patientData = child.val());
+
+    res.json({ success: true, estimatedWaitTime: patientData.estimatedWaitTime || "Not Available" });
 });
 
 

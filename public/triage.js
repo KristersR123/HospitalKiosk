@@ -93,31 +93,41 @@ const patientList = document.getElementById("patient-list");
 
 // Function to Load Patients for Triage
 function loadPatients() {
-    fetch("https://hospitalkiosk.onrender.com/patients-awaiting-triage")
+    fetch(`${RENDER_API_URL}/patients-awaiting-triage`)
         .then(response => response.json())
         .then(patients => {
-            if (!Array.isArray(patients)) {
-                console.error("❌ Expected an array but received:", patients);
+            if (!patients || Object.keys(patients).length === 0) {
+                console.log("✅ No patients awaiting triage.");
+                patientList.innerHTML = `<tr><td colspan="5">No patients awaiting triage.</td></tr>`;
                 return;
             }
 
-            const patientsContainer = document.getElementById("patients-container");
-            patientsContainer.innerHTML = ""; // Clear existing list
+            patientList.innerHTML = ""; // Clear table
 
-            if (patients.length === 0) {
-                patientsContainer.innerHTML = "<p>No patients awaiting triage.</p>";
-                return;
-            }
+            Object.entries(patients).forEach(([key, patient]) => {
+                let row = document.createElement("tr");
+                row.setAttribute("id", `row-${key}`);
 
-            patients.forEach(patient => {
-                const patientCard = document.createElement("div");
-                patientCard.className = "patient-card";
-                patientCard.innerHTML = `
-                    <p><strong>Name:</strong> ${patient.fullName}</p>
-                    <p><strong>DOB:</strong> ${patient.dob}</p>
-                    <p><strong>Condition:</strong> ${patient.condition || "Not assigned"}</p>
+                row.innerHTML = `
+                    <td>${patient.patientID}</td>
+                    <td>${patient.fullName}</td>
+                    <td>${patient.condition || "Not Assigned"}</td>
+                    <td>
+                        <select id="severity-${key}">
+                            <option value="">Select Severity</option>
+                            <option value="Red">Red (Immediate)</option>
+                            <option value="Orange">Orange (Very Urgent)</option>
+                            <option value="Yellow">Yellow (Urgent)</option>
+                            <option value="Green">Green (Standard)</option>
+                            <option value="Blue">Blue (Non-Urgent)</option>
+                        </select>
+                    </td>
+                    <td>
+                        <button onclick="assignSeverity('${key}')">Confirm</button>
+                    </td>
                 `;
-                patientsContainer.appendChild(patientCard);
+
+                patientList.appendChild(row);
             });
         })
         .catch(error => console.error("❌ Error loading patients:", error));
