@@ -270,6 +270,32 @@ app.post("/discharge-patient", async (req, res) => {
     }
 });
 
+function assignSeverity(patientID) {
+    let severity = document.getElementById(`severity-${patientID}`).value;
+    if (!severity) {
+        alert("Please select a severity level.");
+        return;
+    }
+
+    console.log("Sending request with:", { patientID, severity }); // ✅ Debugging line
+
+    fetch(`${RENDER_API_URL}/assign-severity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientID, severity })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert("Severity assigned successfully!");
+            loadPatients();
+        } else {
+            alert("Error assigning severity.");
+        }
+    })
+    .catch(error => console.error("❌ Error assigning severity:", error));
+}
+
 // ✅ Function to Assign a Condition and Queue Number
 app.post("/assign-condition", async (req, res) => {
     try {
@@ -316,6 +342,7 @@ app.post("/assign-condition", async (req, res) => {
 app.post("/assign-severity", async (req, res) => {
     try {
         const { patientID, severity } = req.body;
+
         if (!patientID || !severity) {
             return res.status(400).json({ error: "Missing required fields" });
         }
@@ -327,7 +354,6 @@ app.post("/assign-severity", async (req, res) => {
             return res.status(404).json({ error: "Patient not found" });
         }
 
-        // Assign severity and move to "Waiting for Doctor"
         await patientRef.update({
             severity,
             status: "Waiting for Doctor",
