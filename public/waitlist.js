@@ -1,6 +1,7 @@
 const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
 const waitlistContainer = document.getElementById("waitlist-container");
 
+
 // ✅ Function to Load & Auto-Update Waitlist in Real-Time
 function loadWaitlistRealTime() {
 fetch(`${RENDER_API_URL}/waitlist`)
@@ -87,5 +88,18 @@ fetch(`${RENDER_API_URL}/waitlist`)
 // ✅ Auto-refresh every 30 seconds
 setInterval(loadWaitlistRealTime, 30000);
 
-// ✅ Load waitlist when the page loads
-document.addEventListener("DOMContentLoaded", loadWaitlistRealTime);
+const severityWaitTimes = {
+    "Red": 0,
+    "Orange": 10,
+    "Yellow": 60,
+    "Green": 120,
+    "Blue": 240
+};
+
+// ✅ Ensure this runs before `loadWaitlistRealTime`
+document.addEventListener("DOMContentLoaded", () => {
+    loadWaitlistRealTime();
+});
+
+// // ✅ Load waitlist when the page loads
+// document.addEventListener("DOMContentLoaded", loadWaitlistRealTime);
