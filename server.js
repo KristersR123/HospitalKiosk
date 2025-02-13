@@ -252,19 +252,30 @@ app.get("/waitlist", async (req, res) => {
 // ✅ API: Get Doctor Queue (Patients Waiting for Doctor)
 app.get("/doctor-queue", async (req, res) => {
     try {
-        const snapshot = await db.ref("patients").orderByChild("status").equalTo("Waiting for Doctor").once("value");
+        const snapshot = await db.ref("patients")
+            .orderByChild("status")
+            .equalTo("Waiting for Doctor")
+            .once("value");
 
         if (!snapshot.exists()) {
-            return res.status(404).json({ error: "No patients waiting for doctor" });
+            return res.json([]); // ✅ Always return an array instead of an error
         }
 
-        const doctorQueue = snapshot.val();
+        const doctorQueue = [];
+        snapshot.forEach(childSnapshot => {
+            doctorQueue.push({
+                id: childSnapshot.key,
+                ...childSnapshot.val()
+            });
+        });
+
         res.json(doctorQueue);
     } catch (error) {
         console.error("❌ Error fetching doctor queue:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 app.post("/check-in", async (req, res) => {
     try {
@@ -366,34 +377,37 @@ app.post("/assign-severity", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        // ✅ Search for the correct Firebase key
         const patientsRef = db.ref("patients");
         const snapshot = await patientsRef.once("value");
 
         let foundPatientKey = null;
+        let queueNumber = 1;
+
         snapshot.forEach(childSnapshot => {
             const patient = childSnapshot.val();
             if (patient.patientID === patientID) { 
                 foundPatientKey = childSnapshot.key;
+                queueNumber = patient.queueNumber || 1; // Default to 1 if missing
             }
         });
 
         if (!foundPatientKey) {
-            console.log(`❌ Patient ${patientID} not found in Firebase.`);
             return res.status(404).json({ error: "Patient not found" });
         }
 
-        // ✅ Update severity and status
-        const patientRef = db.ref(`patients/${foundPatientKey}`);
-        await patientRef.update({
+        // ✅ Calculate correct estimated wait time
+        const baseWaitTime = severityWaitTimes[severity] || 10;
+        const estimatedWaitTime = baseWaitTime * queueNumber; // ⏳ Multiply by queue position
+
+        // ✅ Update patient in Firebase
+        await db.ref(`patients/${foundPatientKey}`).update({
             severity,
             status: `Queueing for ${severity}`,
-            triageTime: new Date().toISOString()
+            triageTime: new Date().toISOString(),
+            estimatedWaitTime
         });
 
-        console.log(`✅ Severity assigned for patient ${patientID}.`);
-        res.json({ success: true, message: `Severity assigned for patient ${patientID}.` });
-
+        res.json({ success: true, estimatedWaitTime });
     } catch (error) {
         console.error("❌ Error assigning severity:", error);
         res.status(500).json({ error: "Internal server error" });

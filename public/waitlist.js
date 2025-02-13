@@ -54,15 +54,14 @@ function loadWaitlistRealTime() {
                 listItem.id = `queue-${patient.patientID}`;
 
                 let now = new Date().getTime();
-                let triageTime = patient.triageTime ? new Date(patient.triageTime).getTime() : null;
-
-                let elapsedTime = triageTime ? (now - triageTime) / 60000 : 0;
+                let triageTime = new Date(patient.triageTime).getTime();
+                let elapsedTime = (now - triageTime) / 60000;
                 let baseWaitTime = severityWaitTimes[patient.severity] || 60;
-                let remainingWaitTime = triageTime ? Math.max(baseWaitTime * queuePosition - elapsedTime, 0) : "Unknown";
+                let remainingWaitTime = Math.max(baseWaitTime * queuePosition - elapsedTime, 0);
 
-                let statusText = (remainingWaitTime === "Unknown" || isNaN(remainingWaitTime)) 
-                    ? "Waiting for Data" 
-                    : `<span class="countdown">${Math.floor(remainingWaitTime)} min</span>`;
+                let statusText = remainingWaitTime > 0 
+                    ? `<span class="countdown">${Math.floor(remainingWaitTime)} min</span>`
+                    : "Please See Doctor";
 
                 listItem.innerHTML = `
                     <div class="queue-patient">
@@ -81,8 +80,8 @@ function loadWaitlistRealTime() {
     .catch(error => console.error("❌ Error loading waitlist:", error));
 }
 
-// ✅ Automatically refresh waitlist every 5 seconds
-setInterval(loadWaitlistRealTime, 5000);
+// ✅ Auto-refresh every 30 seconds
+setInterval(loadWaitlistRealTime, 30000);
 
 // ✅ Load waitlist when the page loads
 document.addEventListener("DOMContentLoaded", loadWaitlistRealTime);

@@ -389,12 +389,17 @@ function loadDoctorQueue() {
     fetch(`${RENDER_API_URL}/doctor-queue`)
         .then(response => response.json())
         .then(patients => {
+            console.log("Doctor queue:", patients); // ✅ Debugging output
             doctorDashboard.innerHTML = "";
+
+            const queueContainer = document.getElementById("doctor-queue");
 
             if (!Array.isArray(patients)) {
                 console.error("❌ Expected an array but got:", patients);
                 return;
             }
+
+            queueContainer.innerHTML = ""; // ✅ Clear old list
 
             patients.forEach(patient => {
                 let patientCard = document.createElement("div");
@@ -421,6 +426,9 @@ function acceptPatient(patientID) {
     .then(() => loadDoctorQueue())
     .catch(error => console.error("❌ Error accepting patient:", error));
 }
+
+// ✅ Reload every 10 seconds
+setInterval(loadDoctorQueue, 10000);
 
 // Load dashboard on page load
 document.addEventListener("DOMContentLoaded", loadDoctorQueue);
