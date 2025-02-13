@@ -107,6 +107,8 @@ async function adjustWaitTimes(patientID) {
         console.error("❌ Error adjusting wait times:", error);
     }
 }
+
+
 app.get("/patient-wait-time/:patientID", async (req, res) => {
     const { patientID } = req.params;
 
@@ -175,6 +177,34 @@ app.get("/doctor-queue", async (req, res) => {
     }
 });
 
+app.post("/check-in", async (req, res) => {
+    try {
+        const { fullName, dob, gender } = req.body;
+
+        if (!fullName || !dob || !gender) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const patientID = "PAT-" + Math.floor(100000 + Math.random() * 900000);
+        const checkInTime = new Date().toISOString();
+
+        const newPatientRef = db.ref("patients").push();
+        await newPatientRef.set({
+            firebaseKey: newPatientRef.key,
+            patientID,
+            fullName,
+            dateOfBirth: dob,
+            gender,
+            checkInTime,
+            status: "Awaiting Condition Selection"
+        });
+
+        res.json({ success: true, patientID });
+    } catch (error) {
+        console.error("❌ Error storing patient:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
 
 
 // ✅ API: Accept Patient
