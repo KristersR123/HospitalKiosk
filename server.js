@@ -187,19 +187,33 @@ app.get("/patients-awaiting-triage", async (req, res) => {
 
 app.get("/waitlist", async (req, res) => {
     try {
-        const snapshot = await db.ref("patients").orderByChild("status").equalTo("Waiting for Doctor").once("value");
+        const snapshot = await db.ref("patients").once("value");
 
         if (!snapshot.exists()) {
-            return res.status(404).json({ error: "No patients in waitlist" });
+            return res.json([]);
         }
 
-        const waitlist = snapshot.val();
+        const waitlist = [];
+        snapshot.forEach(childSnapshot => {
+            const patient = childSnapshot.val();
+            if (patient.status.startsWith("Queueing for")) { // ✅ Ensures they are in the right queue
+                waitlist.push({
+                    patientID: patient.patientID,
+                    condition: patient.condition,
+                    severity: patient.severity,
+                    queueNumber: patient.queueNumber,
+                    estimatedWaitTime: patient.estimatedWaitTime
+                });
+            }
+        });
+
         res.json(waitlist);
     } catch (error) {
         console.error("❌ Error fetching waitlist:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 // ✅ API: Get Doctor Queue (Patients Waiting for Doctor)
 app.get("/doctor-queue", async (req, res) => {
@@ -234,15 +248,15 @@ app.post("/check-in", async (req, res) => {
             firebaseKey: newPatientRef.key,
             patientID,
             fullName,
-            dob: dob,
+            dob,
             gender,
             checkInTime,
-            status: "Awaiting Condition Selection"
+            status: "Waiting for Triage"
         });
 
         res.json({ success: true, patientID });
     } catch (error) {
-        console.error("❌ Error storing patient:", error);
+        console.error("❌ Error checking in patient:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
@@ -250,13 +264,25 @@ app.post("/check-in", async (req, res) => {
 
 // ✅ API: Accept Patient
 app.post("/accept-patient", async (req, res) => {
-    const { patientID } = req.body;
-
     try {
-        await db.ref(`patients/${patientID}`).update({
+        const { patientID } = req.body;
+
+        if (!patientID) {
+            return res.status(400).json({ error: "Missing patient ID" });
+        }
+
+        const patientRef = db.ref(`patients/${patientID}`);
+        const snapshot = await patientRef.once("value");
+
+        if (!snapshot.exists()) {
+            return res.status(404).json({ error: "Patient not found" });
+        }
+
+        await patientRef.update({
             status: "With Doctor",
-            acceptedTime: new Date().toISOString()
+            acceptedTime: new Date().toISOString() // ✅ Store time when doctor accepts patient
         });
+
         res.json({ success: true, message: `✅ Patient ${patientID} accepted.` });
     } catch (error) {
         console.error("❌ Error accepting patient:", error);
@@ -266,12 +292,57 @@ app.post("/accept-patient", async (req, res) => {
 
 // ✅ API: Discharge Patient
 app.post("/discharge-patient", async (req, res) => {
-    const { patientID } = req.body;
-
     try {
-        await adjustWaitTimes(patientID);
-        await db.ref(`patients/${patientID}`).remove();
-        res.json({ success: true, message: `✅ Patient ${patientID} discharged.` });
+        const { patientID } = req.body;
+
+        if (!patientID) {
+            return res.status(400).json({ error: "Missing patient ID" });
+        }
+
+        const patientRef = db.ref(`patients/${patientID}`);
+        const snapshot = await patientRef.once("value");
+
+        if (!snapshot.exists()) {
+            return res.status(404).json({ error: "Patient not found" });
+        }
+
+        const patient = snapshot.val();
+        const acceptedTime = new Date(patient.acceptedTime).getTime();
+        const now = Date.now();
+        const doctorTimeSpent = (now - acceptedTime) / 60000; // ✅ Time spent in minutes
+
+        // ✅ Adjust wait times of remaining patients in this condition & severity queue
+        const condition = patient.condition;
+        const severity = patient.severity;
+
+        const patientsRef = db.ref("patients");
+        const patientsSnapshot = await patientsRef.once("value");
+
+        if (patientsSnapshot.exists()) {
+            const updates = {};
+            patientsSnapshot.forEach(childSnapshot => {
+                const nextPatient = childSnapshot.val();
+                const nextPatientID = childSnapshot.key;
+
+                if (
+                    nextPatient.status.startsWith("Queueing for") &&
+                    nextPatient.condition === condition &&
+                    nextPatient.severity === severity
+                ) {
+                    // ✅ Adjust wait time for remaining patients
+                    const newWaitTime = Math.max(nextPatient.estimatedWaitTime - doctorTimeSpent, 0);
+                    updates[`${nextPatientID}/estimatedWaitTime`] = newWaitTime;
+                }
+            });
+
+            await db.ref("patients").update(updates);
+            console.log(`✅ Wait times updated based on doctor time: -${doctorTimeSpent} mins.`);
+        }
+
+        // ✅ Remove patient from database after discharge
+        await patientRef.remove();
+
+        res.json({ success: true, message: `✅ Patient ${patientID} discharged & queue updated.` });
     } catch (error) {
         console.error("❌ Error discharging patient:", error);
         res.status(500).json({ success: false, message: "Error discharging patient." });
@@ -295,19 +366,29 @@ app.post("/assign-severity", async (req, res) => {
             return res.status(404).json({ error: "Patient not found" });
         }
 
+        const patient = snapshot.val();
+        const condition = patient.condition; // ✅ Get condition
+
+        // ✅ Get queue number for this condition & severity
+        const queueRef = db.ref(`queueNumbers/${condition}/${severity}`);
+        const queueSnapshot = await queueRef.once("value");
+        const queueNumber = queueSnapshot.exists() ? queueSnapshot.val() + 1 : 1;
+
         await patientRef.update({
             severity,
-            status: `Queueing for ${condition}`,
-            triageTime: new Date().toISOString(),
-            estimatedWaitTime: severityWaitTimes[severity]
+            status: `Queueing for ${severity}`,
+            queueNumber
         });
 
-        res.json({ success: true, message: "Severity assigned. Patient moved to doctor queue." });
+        await queueRef.set(queueNumber); // ✅ Update queue number in database
+
+        res.json({ success: true, queueNumber });
     } catch (error) {
         console.error("❌ Error assigning severity:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 app.post("/assign-condition", async (req, res) => {
     try {
