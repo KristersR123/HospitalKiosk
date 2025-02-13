@@ -278,31 +278,6 @@ app.post("/discharge-patient", async (req, res) => {
     }
 });
 
-function assignSeverity(patientID) {
-    let severity = document.getElementById(`severity-${patientID}`).value;
-    if (!severity) {
-        alert("Please select a severity level.");
-        return;
-    }
-
-    console.log("Sending request with:", { patientID, severity }); // ✅ Debugging line
-
-    fetch(`${RENDER_API_URL}/assign-severity`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patientID, severity })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert("Severity assigned successfully!");
-            loadPatients();
-        } else {
-            alert("Error assigning severity.");
-        }
-    })
-    .catch(error => console.error("❌ Error assigning severity:", error));
-}
 
 // ✅ Function to Assign a Condition and Queue Number
 app.post("/assign-severity", async (req, res) => {
@@ -313,48 +288,29 @@ app.post("/assign-severity", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        const patientRef = db.ref(`patients/${patientID}`);
-        const snapshot = await patientRef.once("value");
+        const patientsRef = db.ref("patients");
+const snapshot = await patientsRef.once("value");
 
-        if (!snapshot.exists()) {
-            return res.status(404).json({ error: "Patient not found" });
-        }
+let foundPatientKey = null;
 
-        await patientRef.update({
-            severity,
-            status: "Waiting for Doctor",
-            triageTime: new Date().toISOString(),
-            estimatedWaitTime: severityWaitTimes[severity]
-        });
-
-        res.json({ success: true, message: "Severity assigned. Patient moved to doctor queue." });
-    } catch (error) {
-        console.error("❌ Error assigning severity:", error);
-        res.status(500).json({ error: "Internal server error" });
+snapshot.forEach(childSnapshot => {
+    const patient = childSnapshot.val();
+    if (patient.patientID === patientID) { 
+        foundPatientKey = childSnapshot.key;
     }
 });
 
-app.post("/assign-severity", async (req, res) => {
-    try {
-        const { patientID, severity } = req.body;
+if (!foundPatientKey) {
+    return res.status(404).json({ error: "Patient not found" });
+}
 
-        if (!patientID || !severity) {
-            return res.status(400).json({ error: "Missing required fields" });
-        }
-
-        const patientRef = db.ref(`patients/${patientID}`);
-        const snapshot = await patientRef.once("value");
-
-        if (!snapshot.exists()) {
-            return res.status(404).json({ error: "Patient not found" });
-        }
-
-        await patientRef.update({
-            severity,
-            status: "Waiting for Doctor",
-            triageTime: new Date().toISOString(),
-            estimatedWaitTime: severityWaitTimes[severity]
-        });
+const patientRef = db.ref(`patients/${foundPatientKey}`);
+await patientRef.update({
+    severity,
+    status: "Waiting for Doctor",
+    triageTime: new Date().toISOString(),
+    estimatedWaitTime: severityWaitTimes[severity]
+});
 
         res.json({ success: true, message: "Severity assigned. Patient moved to doctor queue." });
     } catch (error) {
