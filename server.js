@@ -173,7 +173,7 @@ app.get("/doctor-queue", async (req, res) => {
             .once("value");
 
         if (!snapshot.exists()) {
-            return res.json([]); // ✅ Return empty array if no patients
+            return res.json([]); // ✅ Return an empty array instead of an error
         }
 
         const doctorQueue = [];
@@ -184,10 +184,10 @@ app.get("/doctor-queue", async (req, res) => {
             });
         });
 
-        // ✅ Only return the first patient who is ready
+        // ✅ Only return the first patient ready to be accepted
         const firstPatient = doctorQueue.sort((a, b) => a.queueNumber - b.queueNumber)[0];
 
-        res.json(firstPatient ? [firstPatient] : []);
+        res.json(firstPatient ? [firstPatient] : []); // Always return an array
     } catch (error) {
         console.error("❌ Error fetching doctor queue:", error);
         res.status(500).json({ error: "Internal server error" });

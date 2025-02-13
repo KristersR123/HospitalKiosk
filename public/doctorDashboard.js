@@ -390,16 +390,19 @@ function loadDoctorQueue() {
         .then(response => response.json())
         .then(patients => {
             console.log("Doctor queue:", patients); // ✅ Debugging output
-            doctorDashboard.innerHTML = "";
 
-            const queueContainer = document.getElementById("doctor-queue");
+            const queueContainer = document.getElementById("doctor-dashboard"); // Ensure element exists
+            if (!queueContainer) {
+                console.error("❌ doctorDashboard element not found.");
+                return;
+            }
+
+            queueContainer.innerHTML = ""; // ✅ Clear old list
 
             if (!Array.isArray(patients)) {
                 console.error("❌ Expected an array but got:", patients);
                 return;
             }
-
-            queueContainer.innerHTML = ""; // ✅ Clear old list
 
             patients.forEach(patient => {
                 let patientCard = document.createElement("div");
@@ -410,7 +413,7 @@ function loadDoctorQueue() {
                     <p>Estimated Wait Time: ${patient.estimatedWaitTime} min</p>
                     <button onclick="acceptPatient('${patient.patientID}')">Accept</button>
                 `;
-                doctorDashboard.appendChild(patientCard);
+                queueContainer.appendChild(patientCard);
             });
         })
         .catch(error => console.error("❌ Error loading doctor queue:", error));
