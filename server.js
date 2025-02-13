@@ -248,9 +248,19 @@ app.post("/assign-condition", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        const patientRef = db.ref("patients").orderByChild("patientID").equalTo(patientID);
-        const snapshot = await patientRef.once("value");
-        if (!snapshot.exists()) {
+        const patientsRef = db.ref("patients");
+        const snapshot = await patientsRef.once("value");
+
+        let foundPatientKey = null;
+
+        snapshot.forEach(childSnapshot => {
+            const patient = childSnapshot.val();
+            if (patient.patientID === patientID) {
+                foundPatientKey = childSnapshot.key;
+            }
+        });
+
+        if (!foundPatientKey) {
             return res.status(404).json({ error: "Patient not found" });
         }
 
@@ -258,7 +268,7 @@ app.post("/assign-condition", async (req, res) => {
         const queueSnapshot = await queueRef.once("value");
         const queueNumber = queueSnapshot.exists() ? queueSnapshot.val() + 1 : 1;
 
-        await patientRef.update({
+        await db.ref(`patients/${foundPatientKey}`).update({
             condition: condition,
             status: "Waiting for Triage",
             queueNumber: queueNumber
