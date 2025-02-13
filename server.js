@@ -121,12 +121,15 @@ app.get("/patient-wait-time/:patientID", async (req, res) => {
         }
 
         const patient = snapshot.val();
-        res.json({ estimatedWaitTime: patient.estimatedWaitTime || "Unknown" });
+        res.json({ success: true, estimatedWaitTime: patient.estimatedWaitTime || "Unknown" });
     } catch (error) {
         console.error("❌ Error fetching wait time:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
+
+
 
 app.get("/patients-awaiting-triage", async (req, res) => {
     try {
@@ -234,6 +237,39 @@ app.post("/discharge-patient", async (req, res) => {
     } catch (error) {
         console.error("❌ Error discharging patient:", error);
         res.status(500).json({ success: false, message: "Error discharging patient." });
+    }
+});
+
+// ✅ Function to Assign a Condition and Queue Number
+app.post("/assign-condition", async (req, res) => {
+    try {
+        const { patientID, condition } = req.body;
+        if (!patientID || !condition) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const patientRef = db.ref(`patients/${patientID}`);
+        const snapshot = await patientRef.once("value");
+        if (!snapshot.exists()) {
+            return res.status(404).json({ error: "Patient not found" });
+        }
+
+        const queueRef = db.ref(`queueNumbers/${condition}`);
+        const queueSnapshot = await queueRef.once("value");
+        const queueNumber = queueSnapshot.exists() ? queueSnapshot.val() + 1 : 1;
+
+        await patientRef.update({
+            condition: condition,
+            status: "Waiting for Triage",
+            queueNumber: queueNumber
+        });
+
+        await queueRef.set(queueNumber);
+
+        res.json({ success: true, queueNumber: queueNumber });
+    } catch (error) {
+        console.error("❌ Error assigning condition:", error);
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
