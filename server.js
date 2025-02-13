@@ -413,12 +413,23 @@ app.post("/assign-condition", async (req, res) => {
             return res.status(404).json({ error: "Patient not found" });
         }
 
+        // ✅ Ensure queue number is generated correctly
+        const queueRef = db.ref(`queueNumbers/${condition}`);
+        const queueSnapshot = await queueRef.once("value");
+        const queueNumber = queueSnapshot.exists() ? queueSnapshot.val() + 1 : 1;
+
+        console.log(`🔹 Assigning queue number: ${queueNumber} for condition: ${condition}`);
+
+        // ✅ Update patient record with condition and queue number
         await db.ref(`patients/${foundPatientKey}`).update({
             condition: condition,
-            status: "Waiting for Triage"
+            status: "Waiting for Triage",
+            queueNumber: queueNumber
         });
 
-        res.json({ success: true, message: "Condition assigned successfully." });
+        await queueRef.set(queueNumber); // ✅ Save updated queue number
+
+        res.json({ success: true, queueNumber });
     } catch (error) {
         console.error("❌ Error assigning condition:", error);
         res.status(500).json({ error: "Internal server error" });

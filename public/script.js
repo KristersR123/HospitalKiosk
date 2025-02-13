@@ -201,12 +201,19 @@ function confirmSelection() {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
+        console.log("🔹 Server response:", data); // ✅ Debugging log
+
+        if (data.success && data.queueNumber !== undefined) {
             alert(`✅ Your condition has been submitted!\nYour queue number: #${data.queueNumber}`);
             window.location.href = "index.html"; // Redirect back for next patient
+        } else {
+            alert("❌ Error: Queue number not assigned. Please try again.");
         }
     })
-    .catch(error => console.error("❌ Error submitting condition:", error));
+    .catch(error => {
+        console.error("❌ Error submitting condition:", error);
+        alert("❌ Submission failed. Try again.");
+    });
 }
 
 // Function to Load and Display Estimated Wait Times
