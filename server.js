@@ -30,10 +30,14 @@ const severityWaitTimes = {
 // ✅ Function to Monitor Queue and Update Status
 async function monitorQueue() {
     try {
+        console.log("🔄 Running queue monitor...");
         const patientsRef = db.ref("patients");
         const snapshot = await patientsRef.once("value");
 
-        if (!snapshot.exists()) return;
+        if (!snapshot.exists()) {
+            console.log("✅ No patients in queue.");
+            return;
+        }
 
         const now = Date.now();
         const updates = {};
@@ -42,6 +46,8 @@ async function monitorQueue() {
             const patient = childSnapshot.val();
             const patientID = childSnapshot.key;
 
+            console.log(`🔍 Checking patient ${patientID} - Status: ${patient.status}`);
+
             if (patient.status === "Waiting for Doctor") {
                 const triageTime = new Date(patient.triageTime).getTime();
                 const elapsedTime = (now - triageTime) / 60000; // Convert to minutes
@@ -49,15 +55,17 @@ async function monitorQueue() {
 
                 const remainingTime = Math.max(baseWaitTime - elapsedTime, 0);
 
-                // ✅ If remaining time reaches 0, mark as "Please See Doctor"
-                if (remainingTime <= 0 && patient.status === "Waiting for Doctor") {
+                console.log(`⏳ Patient ${patientID} - Remaining Time: ${remainingTime} minutes`);
+
+                if (remainingTime <= 0) {
                     updates[`${patientID}/status`] = "Please See Doctor";
+                    console.log(`🚨 Patient ${patientID} now needs to see a doctor!`);
                 }
+
                 updates[`${patientID}/estimatedWaitTime`] = Math.floor(remainingTime);
             }
         });
 
-        // ✅ Apply batch updates
         await db.ref("patients").update(updates);
         console.log("✅ Queue updated successfully.");
     } catch (error) {
@@ -108,20 +116,42 @@ async function adjustWaitTimes(patientID) {
     }
 }
 
+
 app.get('/patient-wait-time/:patientID', async (req, res) => {
-    const { patientID } = req.params;
-    const snapshot = await db.ref("patients").orderByChild("patientID").equalTo(patientID).once("value");
+    try {
+        const { patientID } = req.params;
+        console.log(`🔍 Fetching wait time for patient: ${patientID}`);
 
-    if (!snapshot.exists()) {
-        return res.status(404).json({ error: "Patient not found" });
+        const snapshot = await db.ref("patients").once("value");
+
+        if (!snapshot.exists()) {
+            console.log("❌ No patients found in the database.");
+            return res.status(404).json({ error: "Patient not found" });
+        }
+
+        let patientData = null;
+        snapshot.forEach(child => {
+            if (child.val().patientID === patientID) {
+                patientData = child.val();
+            }
+        });
+
+        if (!patientData) {
+            console.log(`❌ Patient ID ${patientID} not found.`);
+            return res.status(404).json({ error: "Patient not found" });
+        }
+
+        console.log(`✅ Patient found: ${JSON.stringify(patientData)}`);
+
+        res.json({ 
+            success: true, 
+            estimatedWaitTime: patientData.estimatedWaitTime || "Not Available" 
+        });
+    } catch (error) {
+        console.error("❌ Error fetching wait time:", error);
+        res.status(500).json({ error: "Internal Server Error" });
     }
-
-    let patientData;
-    snapshot.forEach(child => patientData = child.val());
-
-    res.json({ success: true, estimatedWaitTime: patientData.estimatedWaitTime || "Not Available" });
 });
-
 
 
 

@@ -212,13 +212,25 @@ function confirmSelection() {
 // Function to Load and Display Estimated Wait Times
 function loadWaitTime() {
     let patientID = sessionStorage.getItem("patientID");
-    if (!patientID) return;
+    if (!patientID) {
+        console.error("❌ No patient ID found in session storage.");
+        return;
+    }
 
     fetch(`${RENDER_API_URL}/patient-wait-time/${patientID}`)
     .then(response => response.json())
     .then(data => {
+        let waitTimeElement = document.getElementById("estimated-wait-time");
+        
+        if (!waitTimeElement) {
+            console.error("❌ 'estimated-wait-time' element not found in DOM.");
+            return;
+        }
+
         if (data.success) {
-            document.getElementById("estimated-wait-time").textContent = `Estimated Wait Time: ${data.estimatedWaitTime} minutes`;
+            waitTimeElement.textContent = `Estimated Wait Time: ${data.estimatedWaitTime} minutes`;
+        } else {
+            waitTimeElement.textContent = "Wait time not available.";
         }
     })
     .catch(error => console.error("❌ Error fetching wait time:", error));
