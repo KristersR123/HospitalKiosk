@@ -226,19 +226,28 @@ app.get("/waitlist", async (req, res) => {
         const snapshot = await db.ref("patients").once("value");
 
         if (!snapshot.exists()) {
-            return res.json([]);
+            return res.json([]); // ✅ Ensure it always returns an array
         }
 
         const waitlist = [];
         snapshot.forEach(childSnapshot => {
             const patient = childSnapshot.val();
-            if (patient.status.startsWith("Queueing for")) { // ✅ Ensures they are in the right queue
+            
+            // ✅ Ensure valid patient data
+            if (!patient || !patient.status || !patient.patientID) {
+                console.warn("⚠ Skipping invalid patient entry:", patient);
+                return;
+            }
+
+            if (patient.status.startsWith("Queueing for")) {
                 waitlist.push({
                     patientID: patient.patientID,
-                    condition: patient.condition,
-                    severity: patient.severity,
-                    queueNumber: patient.queueNumber,
-                    estimatedWaitTime: patient.estimatedWaitTime
+                    condition: patient.condition || "Unknown",
+                    severity: patient.severity || "Unknown",
+                    queueNumber: patient.queueNumber || 0,
+                    estimatedWaitTime: patient.estimatedWaitTime !== undefined 
+                        ? patient.estimatedWaitTime 
+                        : severityWaitTimes[patient.severity] || 60
                 });
             }
         });

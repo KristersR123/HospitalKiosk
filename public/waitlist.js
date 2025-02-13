@@ -1,20 +1,13 @@
 const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
 const waitlistContainer = document.getElementById("waitlist-container");
 
-// ✅ Severity-based Wait Times (Minutes)
-const severityWaitTimes = {
-    "Red": 0,      
-    "Orange": 10,  
-    "Yellow": 60,  
-    "Green": 120,  
-    "Blue": 240    
-};
-
 // ✅ Function to Load & Auto-Update Waitlist in Real-Time
 function loadWaitlistRealTime() {
     fetch(`${RENDER_API_URL}/waitlist`)
     .then(response => response.json())
     .then(patients => {
+        console.log("📌 Waitlist Data:", patients); // ✅ Debugging output
+
         waitlistContainer.innerHTML = ""; // Clear the container
 
         if (!patients || patients.length === 0) {
@@ -25,6 +18,11 @@ function loadWaitlistRealTime() {
         let conditionGroups = {};
 
         patients.forEach(patient => {
+            if (!patient || !patient.status) {  // ✅ Prevents errors
+                console.warn("⚠ Skipping invalid patient entry:", patient);
+                return;
+            }
+
             let key = `${patient.condition}-${patient.severity}`;
             if (!conditionGroups[key]) {
                 conditionGroups[key] = [];
@@ -58,13 +56,12 @@ function loadWaitlistRealTime() {
                 let elapsedTime = (now - triageTime) / 60000;
                 
                 let baseWaitTime = severityWaitTimes[patient.severity] || 60;
-                
-                // 🔹 Use stored `estimatedWaitTime` from Firebase first
+
                 let remainingWaitTime = patient.estimatedWaitTime !== undefined 
                     ? Math.max(patient.estimatedWaitTime - elapsedTime, 0)
-                    : Math.max(baseWaitTime * queuePosition - elapsedTime, 0); // 🔹 Fallback
-                
-                    let statusText = (remainingWaitTime > 0 || patient.status.startsWith("Queueing for"))
+                    : Math.max(baseWaitTime * queuePosition - elapsedTime, 0);
+
+                let statusText = remainingWaitTime > 0 
                     ? `<span class="countdown">${Math.floor(remainingWaitTime)} min</span>`
                     : "Please See Doctor";
 
