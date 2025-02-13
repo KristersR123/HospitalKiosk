@@ -68,9 +68,10 @@ async function monitorQueue() {
                 updates[`${patientID}/estimatedWaitTime`] = Math.floor(remainingTime);
 
                 // ✅ When wait time reaches 0, update status to "Please See Doctor"
-                if (remainingTime <= 0 && patient.status !== "With Doctor") {
+                if (remainingTime <= 0 && patient.status.startsWith("Queueing for")) {
                     updates[`${patientID}/status`] = "Please See Doctor";
                 }
+                
             }
         });
 
@@ -183,7 +184,7 @@ app.get("/doctor-queue", async (req, res) => {
             });
         });
 
-        // ✅ Ensure the doctor only sees the first patient in line
+        // ✅ Only return the first patient who is ready
         const firstPatient = doctorQueue.sort((a, b) => a.queueNumber - b.queueNumber)[0];
 
         res.json(firstPatient ? [firstPatient] : []);

@@ -64,7 +64,7 @@ function loadWaitlistRealTime() {
                     ? Math.max(patient.estimatedWaitTime - elapsedTime, 0)
                     : Math.max(baseWaitTime * queuePosition - elapsedTime, 0); // 🔹 Fallback
                 
-                let statusText = remainingWaitTime > 0 
+                    let statusText = (remainingWaitTime > 0 || patient.status.startsWith("Queueing for"))
                     ? `<span class="countdown">${Math.floor(remainingWaitTime)} min</span>`
                     : "Please See Doctor";
 
