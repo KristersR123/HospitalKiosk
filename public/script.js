@@ -143,7 +143,7 @@ function submitPatientInfo() {
 
     let patientData = {
         fullName: fullName,
-        dateOfBirth: dob,
+        dob: dob,
         gender: gender
     };
 
