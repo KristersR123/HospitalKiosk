@@ -18,6 +18,14 @@ app.use(cors()); // 🔹 Allow frontend requests
 
 const PORT = process.env.PORT || 5000;
 
+const corsOptions = {
+    origin: "*", // Allow all origins (change this in production)
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    allowedHeaders: ["Content-Type"]
+};
+
+app.use(cors(corsOptions));
+
 // ✅ Severity-based Wait Times (Minutes)
 const severityWaitTimes = {
     "Red": 0,
@@ -297,44 +305,31 @@ function assignSeverity(patientID) {
 }
 
 // ✅ Function to Assign a Condition and Queue Number
-app.post("/assign-condition", async (req, res) => {
+app.post("/assign-severity", async (req, res) => {
     try {
-        const { patientID, condition } = req.body;
-        if (!patientID || !condition) {
+        const { patientID, severity } = req.body;
+
+        if (!patientID || !severity) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        const patientsRef = db.ref("patients");
-        const snapshot = await patientsRef.once("value");
+        const patientRef = db.ref(`patients/${patientID}`);
+        const snapshot = await patientRef.once("value");
 
-        let foundPatientKey = null;
-
-        snapshot.forEach(childSnapshot => {
-            const patient = childSnapshot.val();
-            if (patient.patientID === patientID) {
-                foundPatientKey = childSnapshot.key;
-            }
-        });
-
-        if (!foundPatientKey) {
+        if (!snapshot.exists()) {
             return res.status(404).json({ error: "Patient not found" });
         }
 
-        const queueRef = db.ref(`queueNumbers/${condition}`);
-        const queueSnapshot = await queueRef.once("value");
-        const queueNumber = queueSnapshot.exists() ? queueSnapshot.val() + 1 : 1;
-
-        await db.ref(`patients/${foundPatientKey}`).update({
-            condition: condition,
-            status: "Waiting for Triage",
-            queueNumber: queueNumber
+        await patientRef.update({
+            severity,
+            status: "Waiting for Doctor",
+            triageTime: new Date().toISOString(),
+            estimatedWaitTime: severityWaitTimes[severity]
         });
 
-        await queueRef.set(queueNumber);
-
-        res.json({ success: true, queueNumber: queueNumber });
+        res.json({ success: true, message: "Severity assigned. Patient moved to doctor queue." });
     } catch (error) {
-        console.error("❌ Error assigning condition:", error);
+        console.error("❌ Error assigning severity:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });

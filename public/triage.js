@@ -104,16 +104,16 @@ function loadPatients() {
 
             patientList.innerHTML = ""; // Clear table
 
-            Object.entries(patients).forEach(([key, patient]) => {
+            Object.entries(patients).forEach(([firebaseKey, patient]) => {
                 let row = document.createElement("tr");
-                row.setAttribute("id", `row-${key}`);
+                row.setAttribute("id", `row-${firebaseKey}`);
 
                 row.innerHTML = `
                     <td>${patient.patientID}</td>
                     <td>${patient.fullName}</td>
                     <td>${patient.condition || "Not Assigned"}</td>
                     <td>
-                        <select id="severity-${key}">
+                        <select id="severity-${firebaseKey}">
                             <option value="">Select Severity</option>
                             <option value="Red">Red (Immediate)</option>
                             <option value="Orange">Orange (Very Urgent)</option>
@@ -123,7 +123,7 @@ function loadPatients() {
                         </select>
                     </td>
                     <td>
-                        <button onclick="assignSeverity('${key}')">Confirm</button>
+                        <button onclick="assignSeverity('${firebaseKey}')">Confirm</button>
                     </td>
                 `;
 
@@ -134,17 +134,19 @@ function loadPatients() {
 }
 
 // Function to Assign Severity Level
-function assignSeverity(patientID) {
-    let severity = document.getElementById(`severity-${patientID}`).value;
+function assignSeverity(patientKey) {
+    let severity = document.getElementById(`severity-${patientKey}`).value;
     if (!severity) {
         alert("Please select a severity level.");
         return;
     }
 
+    console.log("🛠️ Sending request with:", { patientID: patientKey, severity });
+
     fetch(`${RENDER_API_URL}/assign-severity`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patientID, severity })
+        body: JSON.stringify({ patientID: patientKey, severity })
     })
     .then(response => response.json())
     .then(data => {
