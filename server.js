@@ -60,20 +60,17 @@ async function monitorQueue() {
             if (patient.status.startsWith("Queueing for") && patient.triageTime) {
                 const triageTime = new Date(patient.triageTime).getTime();
                 const elapsedTime = (now - triageTime) / 60000; // Convert to minutes
-                const baseWaitTime = severityWaitTimes[patient.severity] || 10;
 
+                let baseWaitTime = severityWaitTimes[patient.severity] || 10;
                 let remainingTime = Math.max(baseWaitTime - elapsedTime, 0);
 
-                // ✅ Ensure every patient has an estimated wait time
+                // ✅ Update estimated wait time
                 updates[`${patientID}/estimatedWaitTime`] = Math.floor(remainingTime);
 
-                // ✅ If time is up, update status
-                if (remainingTime <= 0) {
+                // ✅ When wait time reaches 0, update status to "Please See Doctor"
+                if (remainingTime <= 0 && patient.status !== "With Doctor") {
                     updates[`${patientID}/status`] = "Please See Doctor";
                 }
-            } else if (patient.status === "With Doctor") {
-                // ✅ If with a doctor, do not decrement time
-                updates[`${patientID}/estimatedWaitTime`] = patient.estimatedWaitTime;
             }
         });
 
@@ -83,6 +80,7 @@ async function monitorQueue() {
         console.error("❌ Error monitoring queue:", error);
     }
 }
+
 
 // ✅ Function to Adjust Queue Wait Times on Discharge
 async function adjustWaitTimes(patientID) {
@@ -170,11 +168,11 @@ app.get("/doctor-queue", async (req, res) => {
     try {
         const snapshot = await db.ref("patients")
             .orderByChild("status")
-            .equalTo("Waiting for Doctor")
+            .equalTo("Please See Doctor")
             .once("value");
 
         if (!snapshot.exists()) {
-            return res.status(404).json({ error: "No patients waiting for doctor" });
+            return res.json([]); // ✅ Return empty array if no patients
         }
 
         const doctorQueue = [];
@@ -185,7 +183,10 @@ app.get("/doctor-queue", async (req, res) => {
             });
         });
 
-        res.json(doctorQueue);
+        // ✅ Ensure the doctor only sees the first patient in line
+        const firstPatient = doctorQueue.sort((a, b) => a.queueNumber - b.queueNumber)[0];
+
+        res.json(firstPatient ? [firstPatient] : []);
     } catch (error) {
         console.error("❌ Error fetching doctor queue:", error);
         res.status(500).json({ error: "Internal server error" });
@@ -249,33 +250,6 @@ app.get("/waitlist", async (req, res) => {
 });
 
 
-// ✅ API: Get Doctor Queue (Patients Waiting for Doctor)
-app.get("/doctor-queue", async (req, res) => {
-    try {
-        const snapshot = await db.ref("patients")
-            .orderByChild("status")
-            .equalTo("Waiting for Doctor")
-            .once("value");
-
-        if (!snapshot.exists()) {
-            return res.json([]); // ✅ Always return an array instead of an error
-        }
-
-        const doctorQueue = [];
-        snapshot.forEach(childSnapshot => {
-            doctorQueue.push({
-                id: childSnapshot.key,
-                ...childSnapshot.val()
-            });
-        });
-
-        res.json(doctorQueue);
-    } catch (error) {
-        console.error("❌ Error fetching doctor queue:", error);
-        res.status(500).json({ error: "Internal server error" });
-    }
-});
-
 
 app.post("/check-in", async (req, res) => {
     try {
@@ -336,6 +310,7 @@ app.post("/accept-patient", async (req, res) => {
 });
 
 
+
 // ✅ API: Discharge Patient (Now Calls adjustWaitTimes)
 app.post("/discharge-patient", async (req, res) => {
     try {
@@ -352,20 +327,49 @@ app.post("/discharge-patient", async (req, res) => {
             return res.status(404).json({ error: "Patient not found" });
         }
 
-        // ✅ Adjust wait times BEFORE removing the patient
-        await adjustWaitTimes(patientID);
+        const patient = snapshot.val();
+        const acceptedTime = new Date(patient.acceptedTime).getTime();
+        const now = Date.now();
+        const doctorTimeSpent = (now - acceptedTime) / 60000; // ✅ Time spent in minutes
+
+        // ✅ Adjust wait times of remaining patients in this condition & severity queue
+        const condition = patient.condition;
+        const severity = patient.severity;
+
+        const patientsRef = db.ref("patients");
+        const patientsSnapshot = await patientsRef.once("value");
+
+        if (patientsSnapshot.exists()) {
+            const updates = {};
+            patientsSnapshot.forEach(childSnapshot => {
+                const nextPatient = childSnapshot.val();
+                const nextPatientID = childSnapshot.key;
+
+                if (
+                    nextPatient.status.startsWith("Queueing for") &&
+                    nextPatient.condition === condition &&
+                    nextPatient.severity === severity
+                ) {
+                    // ✅ Adjust wait time for remaining patients
+                    const newWaitTime = Math.max(nextPatient.estimatedWaitTime - doctorTimeSpent, 0);
+                    updates[`${nextPatientID}/estimatedWaitTime`] = newWaitTime;
+                }
+            });
+
+            await db.ref("patients").update(updates);
+            console.log(`✅ Wait times updated based on doctor time: -${doctorTimeSpent} mins.`);
+        }
 
         // ✅ Remove patient from database after discharge
         await patientRef.remove();
 
-        console.log(`✅ Patient ${patientID} discharged & queue updated.`);
         res.json({ success: true, message: `✅ Patient ${patientID} discharged & queue updated.` });
-
     } catch (error) {
         console.error("❌ Error discharging patient:", error);
         res.status(500).json({ success: false, message: "Error discharging patient." });
     }
 });
+
 
 
 // ✅ Function to Assign a Condition and Queue Number
@@ -377,37 +381,44 @@ app.post("/assign-severity", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
+        // 🔹 Ensure severity has a proper wait time
+        const severityWaitTimes = {
+            "Red": 0,
+            "Orange": 10,  // 🔥 Should be at least 10, NOT 6!
+            "Yellow": 60,
+            "Green": 120,
+            "Blue": 240
+        };
+
+        const baseWaitTime = severityWaitTimes[severity] || 60; // ✅ Default 60 mins
+
+        // ✅ Find the correct Firebase key for the patient
         const patientsRef = db.ref("patients");
         const snapshot = await patientsRef.once("value");
 
         let foundPatientKey = null;
-        let queueNumber = 1;
-
         snapshot.forEach(childSnapshot => {
-            const patient = childSnapshot.val();
-            if (patient.patientID === patientID) { 
+            if (childSnapshot.val().patientID === patientID) {
                 foundPatientKey = childSnapshot.key;
-                queueNumber = patient.queueNumber || 1; // Default to 1 if missing
             }
         });
 
         if (!foundPatientKey) {
+            console.log(`❌ Patient ${patientID} not found in Firebase.`);
             return res.status(404).json({ error: "Patient not found" });
         }
 
-        // ✅ Calculate correct estimated wait time
-        const baseWaitTime = severityWaitTimes[severity] || 10;
-        const estimatedWaitTime = baseWaitTime * queueNumber; // ⏳ Multiply by queue position
-
-        // ✅ Update patient in Firebase
+        // ✅ Correctly Assign Wait Time
         await db.ref(`patients/${foundPatientKey}`).update({
             severity,
+            estimatedWaitTime: baseWaitTime, // ✅ Should be 10 minutes for Orange
             status: `Queueing for ${severity}`,
-            triageTime: new Date().toISOString(),
-            estimatedWaitTime
+            triageTime: new Date().toISOString()
         });
 
-        res.json({ success: true, estimatedWaitTime });
+        console.log(`✅ Severity assigned for patient ${patientID}.`);
+        res.json({ success: true, message: `Severity assigned for patient ${patientID}.` });
+
     } catch (error) {
         console.error("❌ Error assigning severity:", error);
         res.status(500).json({ error: "Internal server error" });

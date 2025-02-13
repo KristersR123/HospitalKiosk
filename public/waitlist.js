@@ -56,9 +56,14 @@ function loadWaitlistRealTime() {
                 let now = new Date().getTime();
                 let triageTime = new Date(patient.triageTime).getTime();
                 let elapsedTime = (now - triageTime) / 60000;
+                
                 let baseWaitTime = severityWaitTimes[patient.severity] || 60;
-                let remainingWaitTime = Math.max(baseWaitTime * queuePosition - elapsedTime, 0);
-
+                
+                // 🔹 Use stored `estimatedWaitTime` from Firebase first
+                let remainingWaitTime = patient.estimatedWaitTime !== undefined 
+                    ? Math.max(patient.estimatedWaitTime - elapsedTime, 0)
+                    : Math.max(baseWaitTime * queuePosition - elapsedTime, 0); // 🔹 Fallback
+                
                 let statusText = remainingWaitTime > 0 
                     ? `<span class="countdown">${Math.floor(remainingWaitTime)} min</span>`
                     : "Please See Doctor";
