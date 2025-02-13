@@ -2,6 +2,7 @@ const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
 const waitlistContainer = document.getElementById("waitlist-container");
 
 // ✅ Function to Load & Auto-Update Waitlist in Real-Time
+function loadWaitlistRealTime() {
 fetch(`${RENDER_API_URL}/waitlist`)
     .then(response => response.json())
     .then(patients => {
