@@ -93,31 +93,31 @@ const patientList = document.getElementById("patient-list");
 
 // Function to Load Patients for Triage
 function loadPatients() {
-    fetch(`${RENDER_API_URL}/patients-awaiting-triage`)
+    fetch("https://hospitalkiosk.onrender.com/patients-awaiting-triage")
         .then(response => response.json())
         .then(patients => {
-            patientList.innerHTML = "";
+            if (!Array.isArray(patients)) {
+                console.error("❌ Expected an array but received:", patients);
+                return;
+            }
+
+            const patientsContainer = document.getElementById("patients-container");
+            patientsContainer.innerHTML = ""; // Clear existing list
+
+            if (patients.length === 0) {
+                patientsContainer.innerHTML = "<p>No patients awaiting triage.</p>";
+                return;
+            }
+
             patients.forEach(patient => {
-                let row = document.createElement("tr");
-                row.innerHTML = `
-                    <td>${patient.patientID}</td>
-                    <td>${patient.fullName}</td>
-                    <td>${patient.condition}</td>
-                    <td>
-                        <select id="severity-${patient.patientID}">
-                            <option value="">Select Severity</option>
-                            <option value="Red">Red (Immediate)</option>
-                            <option value="Orange">Orange (Very Urgent)</option>
-                            <option value="Yellow">Yellow (Urgent)</option>
-                            <option value="Green">Green (Standard)</option>
-                            <option value="Blue">Blue (Non-Urgent)</option>
-                        </select>
-                    </td>
-                    <td>
-                        <button onclick="assignSeverity('${patient.patientID}')">Confirm</button>
-                    </td>
+                const patientCard = document.createElement("div");
+                patientCard.className = "patient-card";
+                patientCard.innerHTML = `
+                    <p><strong>Name:</strong> ${patient.fullName}</p>
+                    <p><strong>DOB:</strong> ${patient.dob}</p>
+                    <p><strong>Condition:</strong> ${patient.condition || "Not assigned"}</p>
                 `;
-                patientList.appendChild(row);
+                patientsContainer.appendChild(patientCard);
             });
         })
         .catch(error => console.error("❌ Error loading patients:", error));

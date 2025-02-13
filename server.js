@@ -136,10 +136,17 @@ app.get("/patients-awaiting-triage", async (req, res) => {
         const snapshot = await db.ref("patients").orderByChild("status").equalTo("Awaiting Condition Selection").once("value");
 
         if (!snapshot.exists()) {
-            return res.status(404).json({ error: "No patients awaiting triage" });
+            return res.json([]); // ✅ Return an empty array instead of an error
         }
 
-        const patients = snapshot.val();
+        const patients = [];
+        snapshot.forEach(childSnapshot => {
+            patients.push({
+                id: childSnapshot.key,
+                ...childSnapshot.val()
+            });
+        });
+
         res.json(patients);
     } catch (error) {
         console.error("❌ Error fetching patients awaiting triage:", error);
