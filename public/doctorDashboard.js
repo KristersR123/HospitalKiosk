@@ -390,6 +390,12 @@ function loadDoctorQueue() {
         .then(response => response.json())
         .then(patients => {
             doctorDashboard.innerHTML = "";
+
+            if (!Array.isArray(patients)) {
+                console.error("❌ Expected an array but got:", patients);
+                return;
+            }
+
             patients.forEach(patient => {
                 let patientCard = document.createElement("div");
                 patientCard.classList.add("patient-card");
@@ -404,7 +410,6 @@ function loadDoctorQueue() {
         })
         .catch(error => console.error("❌ Error loading doctor queue:", error));
 }
-
 // Function to Accept a Patient
 function acceptPatient(patientID) {
     fetch(`${RENDER_API_URL}/accept-patient`, {

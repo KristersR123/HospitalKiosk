@@ -91,30 +91,26 @@
 const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
 const patientList = document.getElementById("patient-list");
 
-// Function to Load Patients for Triage
-function loadPatients() {
-    fetch(`${RENDER_API_URL}/patients-awaiting-triage`)
-    .then(response => response.json())
-    .then(patients => {
-        console.log("Fetched Patients:", patients); // ✅ Debugging log
+function loadTriagePatientsRealTime() {
+    database.ref("patients").orderByChild("status").equalTo("Waiting for Triage").on("value", snapshot => {
+        patientList.innerHTML = ""; // Clear the table before appending
 
-        if (!patients || patients.length === 0) {
-            console.log("✅ No patients awaiting triage.");
+        if (!snapshot.exists()) {
             patientList.innerHTML = `<tr><td colspan="5">No patients awaiting triage.</td></tr>`;
             return;
         }
 
-        patientList.innerHTML = ""; // Clear table
+        snapshot.forEach(childSnapshot => {
+            let patient = childSnapshot.val();
+            let patientKey = childSnapshot.key;
 
-        patients.forEach(patient => {
             let row = document.createElement("tr");
-
             row.innerHTML = `
                 <td>${patient.patientID}</td>
                 <td>${patient.fullName}</td>
                 <td>${patient.condition || "Not Assigned"}</td>
                 <td>
-                    <select id="severity-${patient.patientID}">
+                    <select id="severity-${patientKey}">
                         <option value="">Select Severity</option>
                         <option value="Red">Red (Immediate)</option>
                         <option value="Orange">Orange (Very Urgent)</option>
@@ -124,14 +120,13 @@ function loadPatients() {
                     </select>
                 </td>
                 <td>
-                    <button onclick="assignSeverity('${patient.patientID}')">Confirm</button>
+                    <button onclick="assignSeverity('${patientKey}')">Confirm</button>
                 </td>
             `;
 
             patientList.appendChild(row);
         });
-    })
-    .catch(error => console.error("❌ Error loading patients:", error));
+    });
 }
 
 // Function to Assign Severity Level
@@ -161,5 +156,7 @@ function assignSeverity(firebaseKey) {
     .catch(error => console.error("❌ Error assigning severity:", error));
 }
 
-// Load patients on page load
-document.addEventListener("DOMContentLoaded", loadPatients);
+
+
+// ✅ Call this function when the page loads
+document.addEventListener("DOMContentLoaded", loadTriagePatientsRealTime);

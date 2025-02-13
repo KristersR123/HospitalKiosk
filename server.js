@@ -26,6 +26,13 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+const patientsRef = db.ref("patients");
+
+// ✅ Automatically monitor queue and push updates
+patientsRef.on("child_changed", snapshot => {
+    console.log("✅ Patient updated:", snapshot.val());
+});
+
 // ✅ Severity-based Wait Times (Minutes)
 const severityWaitTimes = {
     "Red": 0,
@@ -50,7 +57,7 @@ async function monitorQueue() {
             const patient = childSnapshot.val();
             const patientID = childSnapshot.key;
 
-            if (patient.status === "Waiting for Doctor" && patient.triageTime) {
+            if (patient.status.startsWith("Queueing for") && patient.triageTime) {
                 const triageTime = new Date(patient.triageTime).getTime();
                 const elapsedTime = (now - triageTime) / 60000; // Convert to minutes
                 const baseWaitTime = severityWaitTimes[patient.severity] || 10;
@@ -64,9 +71,9 @@ async function monitorQueue() {
                 if (remainingTime <= 0) {
                     updates[`${patientID}/status`] = "Please See Doctor";
                 }
-            } else {
-                // ✅ If triage time is missing, set default wait time
-                updates[`${patientID}/estimatedWaitTime`] = "Not Available";
+            } else if (patient.status === "With Doctor") {
+                // ✅ If with a doctor, do not decrement time
+                updates[`${patientID}/estimatedWaitTime`] = patient.estimatedWaitTime;
             }
         });
 
@@ -88,7 +95,7 @@ async function adjustWaitTimes(patientID) {
         const patient = snapshot.val();
         const acceptedTime = new Date(patient.acceptedTime).getTime();
         const now = Date.now();
-        const elapsedDoctorTime = (now - acceptedTime) / 60000; // Convert ms to minutes
+        const elapsedDoctorTime = (now - acceptedTime) / 60000; // Convert to minutes
 
         const patientsRef = db.ref("patients");
         const patientsSnapshot = await patientsRef.once("value");
@@ -103,7 +110,7 @@ async function adjustWaitTimes(patientID) {
 
             // ✅ Adjust wait times for patients with the same condition & severity
             if (
-                nextPatient.status === "Waiting for Doctor" &&
+                nextPatient.status.startsWith("Queueing for") &&
                 nextPatient.condition === patient.condition &&
                 nextPatient.severity === patient.severity
             ) {
@@ -112,13 +119,14 @@ async function adjustWaitTimes(patientID) {
             }
         });
 
-        // ✅ Apply batch updates
         await db.ref("patients").update(updates);
-        console.log(`✅ Wait times adjusted based on doctor time: +${elapsedDoctorTime} mins.`);
+        console.log(`✅ Wait times adjusted based on doctor delay: +${elapsedDoctorTime} mins.`);
     } catch (error) {
         console.error("❌ Error adjusting wait times:", error);
     }
 }
+
+
 
 
 app.get('/patient-wait-time/:patientID', async (req, res) => {
@@ -157,6 +165,32 @@ app.get('/patient-wait-time/:patientID', async (req, res) => {
     }
 });
 
+
+app.get("/doctor-queue", async (req, res) => {
+    try {
+        const snapshot = await db.ref("patients")
+            .orderByChild("status")
+            .equalTo("Waiting for Doctor")
+            .once("value");
+
+        if (!snapshot.exists()) {
+            return res.status(404).json({ error: "No patients waiting for doctor" });
+        }
+
+        const doctorQueue = [];
+        snapshot.forEach(childSnapshot => {
+            doctorQueue.push({
+                id: childSnapshot.key,
+                ...childSnapshot.val()
+            });
+        });
+
+        res.json(doctorQueue);
+    } catch (error) {
+        console.error("❌ Error fetching doctor queue:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
 
 
 app.get("/patients-awaiting-triage", async (req, res) => {
@@ -289,6 +323,7 @@ app.post("/accept-patient", async (req, res) => {
         res.status(500).json({ success: false, message: "Error accepting patient." });
     }
 });
+
 
 // ✅ API: Discharge Patient
 app.post("/discharge-patient", async (req, res) => {
