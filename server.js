@@ -248,7 +248,7 @@ app.post("/assign-condition", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        const patientRef = db.ref(`patients/${patientID}`);
+        const patientRef = db.ref("patients").orderByChild("patientID").equalTo(patientID);
         const snapshot = await patientRef.once("value");
         if (!snapshot.exists()) {
             return res.status(404).json({ error: "Patient not found" });
