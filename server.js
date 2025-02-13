@@ -30,14 +30,10 @@ const severityWaitTimes = {
 // ✅ Function to Monitor Queue and Update Status
 async function monitorQueue() {
     try {
-        console.log("🔄 Running queue monitor...");
         const patientsRef = db.ref("patients");
         const snapshot = await patientsRef.once("value");
 
-        if (!snapshot.exists()) {
-            console.log("✅ No patients in queue.");
-            return;
-        }
+        if (!snapshot.exists()) return;
 
         const now = Date.now();
         const updates = {};
@@ -46,23 +42,23 @@ async function monitorQueue() {
             const patient = childSnapshot.val();
             const patientID = childSnapshot.key;
 
-            console.log(`🔍 Checking patient ${patientID} - Status: ${patient.status}`);
-
-            if (patient.status === "Waiting for Doctor") {
+            if (patient.status === "Waiting for Doctor" && patient.triageTime) {
                 const triageTime = new Date(patient.triageTime).getTime();
                 const elapsedTime = (now - triageTime) / 60000; // Convert to minutes
                 const baseWaitTime = severityWaitTimes[patient.severity] || 10;
 
-                const remainingTime = Math.max(baseWaitTime - elapsedTime, 0);
+                let remainingTime = Math.max(baseWaitTime - elapsedTime, 0);
 
-                console.log(`⏳ Patient ${patientID} - Remaining Time: ${remainingTime} minutes`);
+                // ✅ Ensure every patient has an estimated wait time
+                updates[`${patientID}/estimatedWaitTime`] = Math.floor(remainingTime);
 
+                // ✅ If time is up, update status
                 if (remainingTime <= 0) {
                     updates[`${patientID}/status`] = "Please See Doctor";
-                    console.log(`🚨 Patient ${patientID} now needs to see a doctor!`);
                 }
-
-                updates[`${patientID}/estimatedWaitTime`] = Math.floor(remainingTime);
+            } else {
+                // ✅ If triage time is missing, set default wait time
+                updates[`${patientID}/estimatedWaitTime`] = "Not Available";
             }
         });
 
@@ -310,6 +306,35 @@ app.post("/assign-condition", async (req, res) => {
         res.json({ success: true, queueNumber: queueNumber });
     } catch (error) {
         console.error("❌ Error assigning condition:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+app.post("/assign-severity", async (req, res) => {
+    try {
+        const { patientID, severity } = req.body;
+        if (!patientID || !severity) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const patientRef = db.ref(`patients/${patientID}`);
+        const snapshot = await patientRef.once("value");
+
+        if (!snapshot.exists()) {
+            return res.status(404).json({ error: "Patient not found" });
+        }
+
+        // Assign severity and move to "Waiting for Doctor"
+        await patientRef.update({
+            severity,
+            status: "Waiting for Doctor",
+            triageTime: new Date().toISOString(),
+            estimatedWaitTime: severityWaitTimes[severity]
+        });
+
+        res.json({ success: true, message: "Severity assigned. Patient moved to doctor queue." });
+    } catch (error) {
+        console.error("❌ Error assigning severity:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
