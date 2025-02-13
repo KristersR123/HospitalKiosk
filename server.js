@@ -288,33 +288,58 @@ app.post("/assign-severity", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        const patientsRef = db.ref("patients");
-const snapshot = await patientsRef.once("value");
+        const patientRef = db.ref(`patients/${patientID}`);
+        const snapshot = await patientRef.once("value");
 
-let foundPatientKey = null;
+        if (!snapshot.exists()) {
+            return res.status(404).json({ error: "Patient not found" });
+        }
 
-snapshot.forEach(childSnapshot => {
-    const patient = childSnapshot.val();
-    if (patient.patientID === patientID) { 
-        foundPatientKey = childSnapshot.key;
-    }
-});
-
-if (!foundPatientKey) {
-    return res.status(404).json({ error: "Patient not found" });
-}
-
-const patientRef = db.ref(`patients/${foundPatientKey}`);
-await patientRef.update({
-    severity,
-    status: "Waiting for Doctor",
-    triageTime: new Date().toISOString(),
-    estimatedWaitTime: severityWaitTimes[severity]
-});
+        await patientRef.update({
+            severity,
+            status: `Queueing for ${condition}`,
+            triageTime: new Date().toISOString(),
+            estimatedWaitTime: severityWaitTimes[severity]
+        });
 
         res.json({ success: true, message: "Severity assigned. Patient moved to doctor queue." });
     } catch (error) {
         console.error("❌ Error assigning severity:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+app.post("/assign-condition", async (req, res) => {
+    try {
+        const { patientID, condition } = req.body;
+        if (!patientID || !condition) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const patientsRef = db.ref("patients");
+        const snapshot = await patientsRef.once("value");
+
+        let foundPatientKey = null;
+
+        snapshot.forEach(childSnapshot => {
+            const patient = childSnapshot.val();
+            if (patient.patientID === patientID) { 
+                foundPatientKey = childSnapshot.key;
+            }
+        });
+
+        if (!foundPatientKey) {
+            return res.status(404).json({ error: "Patient not found" });
+        }
+
+        await db.ref(`patients/${foundPatientKey}`).update({
+            condition: condition,
+            status: "Waiting for Triage"
+        });
+
+        res.json({ success: true, message: "Condition assigned successfully." });
+    } catch (error) {
+        console.error("❌ Error assigning condition:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });

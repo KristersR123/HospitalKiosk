@@ -336,53 +336,54 @@ const waitlistContainer = document.getElementById("waitlist-container");
 // Function to Load and Update the Waitlist
 function loadWaitlist() {
     fetch(`${RENDER_API_URL}/waitlist`)
-        .then(response => response.json())
-        .then(patients => {
-            waitlistContainer.innerHTML = "";
-            
-            if (!patients.length) {
-                waitlistContainer.innerHTML = "<p>No patients in the waitlist.</p>";
-                return;
-            }
+    .then(response => response.json())
+    .then(patients => {
+        console.log("Waitlist Data:", patients); // ✅ Debugging Log
+        waitlistContainer.innerHTML = "";
 
-            let conditionGroups = {};
-            patients.forEach(patient => {
-                let key = `${patient.condition}-${patient.severity}`;
-                if (!conditionGroups[key]) conditionGroups[key] = [];
-                conditionGroups[key].push(patient);
-            });
+        if (!patients.length) {
+            waitlistContainer.innerHTML = "<p>No patients in the waitlist.</p>";
+            return;
+        }
 
-            Object.keys(conditionGroups).forEach(groupKey => {
-                let [condition, severity] = groupKey.split("-");
-                let sortedQueue = conditionGroups[groupKey].sort((a, b) => a.queueNumber - b.queueNumber);
+        let conditionGroups = {};
+        patients.forEach(patient => {
+            let key = `${patient.condition}-${patient.severity}`;
+            if (!conditionGroups[key]) conditionGroups[key] = [];
+            conditionGroups[key].push(patient);
+        });
 
-                let conditionSection = document.createElement("div");
-                conditionSection.classList.add("condition-section");
-                conditionSection.innerHTML = `
-                    <div class="condition-title">${condition} - <span class="${severity.toLowerCase()}">${severity} Severity</span></div>
+        Object.keys(conditionGroups).forEach(groupKey => {
+            let [condition, severity] = groupKey.split("-");
+            let sortedQueue = conditionGroups[groupKey].sort((a, b) => a.queueNumber - b.queueNumber);
+
+            let conditionSection = document.createElement("div");
+            conditionSection.classList.add("condition-section");
+            conditionSection.innerHTML = `
+                <div class="condition-title">${condition} - <span class="${severity.toLowerCase()}">${severity} Severity</span></div>
+            `;
+
+            let queueList = document.createElement("ul");
+            queueList.classList.add("patient-list");
+
+            sortedQueue.forEach((patient, index) => {
+                let queuePosition = index + 1;
+                let listItem = document.createElement("li");
+                listItem.classList.add("patient-item");
+                listItem.innerHTML = `
+                    <div class="queue-patient">
+                        Queue Position: <span class="queue-pos">#${queuePosition}</span><br>
+                        Estimated Wait Time: <span class="countdown">${patient.estimatedWaitTime} min</span>
+                    </div>
                 `;
-
-                let queueList = document.createElement("ul");
-                queueList.classList.add("patient-list");
-
-                sortedQueue.forEach((patient, index) => {
-                    let queuePosition = index + 1;
-                    let listItem = document.createElement("li");
-                    listItem.classList.add("patient-item");
-                    listItem.innerHTML = `
-                        <div class="queue-patient">
-                            Queue Position: <span class="queue-pos">#${queuePosition}</span><br>
-                            Estimated Wait Time: <span class="countdown">${patient.estimatedWaitTime} min</span>
-                        </div>
-                    `;
-                    queueList.appendChild(listItem);
-                });
-
-                conditionSection.appendChild(queueList);
-                waitlistContainer.appendChild(conditionSection);
+                queueList.appendChild(listItem);
             });
-        })
-        .catch(error => console.error("❌ Error loading waitlist:", error));
+
+            conditionSection.appendChild(queueList);
+            waitlistContainer.appendChild(conditionSection);
+        });
+    })
+    .catch(error => console.error("❌ Error loading waitlist:", error));
 }
 
 // Load waitlist on page load

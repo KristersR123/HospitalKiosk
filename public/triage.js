@@ -94,43 +94,44 @@ const patientList = document.getElementById("patient-list");
 // Function to Load Patients for Triage
 function loadPatients() {
     fetch(`${RENDER_API_URL}/patients-awaiting-triage`)
-        .then(response => response.json())
-        .then(patients => {
-            if (!patients || Object.keys(patients).length === 0) {
-                console.log("✅ No patients awaiting triage.");
-                patientList.innerHTML = `<tr><td colspan="5">No patients awaiting triage.</td></tr>`;
-                return;
-            }
+    .then(response => response.json())
+    .then(patients => {
+        console.log("Fetched Patients:", patients); // ✅ Debugging log
 
-            patientList.innerHTML = ""; // Clear table
+        if (!patients || patients.length === 0) {
+            console.log("✅ No patients awaiting triage.");
+            patientList.innerHTML = `<tr><td colspan="5">No patients awaiting triage.</td></tr>`;
+            return;
+        }
 
-            Object.entries(patients).forEach(([firebaseKey, patient]) => {
-                let row = document.createElement("tr");
-                row.setAttribute("id", `row-${firebaseKey}`);
+        patientList.innerHTML = ""; // Clear table
 
-                row.innerHTML = `
-                    <td>${patient.patientID}</td>
-                    <td>${patient.fullName}</td>
-                    <td>${patient.condition || "Not Assigned"}</td>
-                    <td>
-                        <select id="severity-${firebaseKey}">
-                            <option value="">Select Severity</option>
-                            <option value="Red">Red (Immediate)</option>
-                            <option value="Orange">Orange (Very Urgent)</option>
-                            <option value="Yellow">Yellow (Urgent)</option>
-                            <option value="Green">Green (Standard)</option>
-                            <option value="Blue">Blue (Non-Urgent)</option>
-                        </select>
-                    </td>
-                    <td>
-                        <button onclick="assignSeverity('${firebaseKey}')">Confirm</button>
-                    </td>
-                `;
+        patients.forEach(patient => {
+            let row = document.createElement("tr");
 
-                patientList.appendChild(row);
-            });
-        })
-        .catch(error => console.error("❌ Error loading patients:", error));
+            row.innerHTML = `
+                <td>${patient.patientID}</td>
+                <td>${patient.fullName}</td>
+                <td>${patient.condition || "Not Assigned"}</td>
+                <td>
+                    <select id="severity-${patient.patientID}">
+                        <option value="">Select Severity</option>
+                        <option value="Red">Red (Immediate)</option>
+                        <option value="Orange">Orange (Very Urgent)</option>
+                        <option value="Yellow">Yellow (Urgent)</option>
+                        <option value="Green">Green (Standard)</option>
+                        <option value="Blue">Blue (Non-Urgent)</option>
+                    </select>
+                </td>
+                <td>
+                    <button onclick="assignSeverity('${patient.patientID}')">Confirm</button>
+                </td>
+            `;
+
+            patientList.appendChild(row);
+        });
+    })
+    .catch(error => console.error("❌ Error loading patients:", error));
 }
 
 // Function to Assign Severity Level
