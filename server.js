@@ -325,7 +325,7 @@ app.post("/accept-patient", async (req, res) => {
 });
 
 
-// ✅ API: Discharge Patient
+// ✅ API: Discharge Patient (Now Calls adjustWaitTimes)
 app.post("/discharge-patient", async (req, res) => {
     try {
         const { patientID } = req.body;
@@ -341,43 +341,15 @@ app.post("/discharge-patient", async (req, res) => {
             return res.status(404).json({ error: "Patient not found" });
         }
 
-        const patient = snapshot.val();
-        const acceptedTime = new Date(patient.acceptedTime).getTime();
-        const now = Date.now();
-        const doctorTimeSpent = (now - acceptedTime) / 60000; // ✅ Time spent in minutes
-
-        // ✅ Adjust wait times of remaining patients in this condition & severity queue
-        const condition = patient.condition;
-        const severity = patient.severity;
-
-        const patientsRef = db.ref("patients");
-        const patientsSnapshot = await patientsRef.once("value");
-
-        if (patientsSnapshot.exists()) {
-            const updates = {};
-            patientsSnapshot.forEach(childSnapshot => {
-                const nextPatient = childSnapshot.val();
-                const nextPatientID = childSnapshot.key;
-
-                if (
-                    nextPatient.status.startsWith("Queueing for") &&
-                    nextPatient.condition === condition &&
-                    nextPatient.severity === severity
-                ) {
-                    // ✅ Adjust wait time for remaining patients
-                    const newWaitTime = Math.max(nextPatient.estimatedWaitTime - doctorTimeSpent, 0);
-                    updates[`${nextPatientID}/estimatedWaitTime`] = newWaitTime;
-                }
-            });
-
-            await db.ref("patients").update(updates);
-            console.log(`✅ Wait times updated based on doctor time: -${doctorTimeSpent} mins.`);
-        }
+        // ✅ Adjust wait times BEFORE removing the patient
+        await adjustWaitTimes(patientID);
 
         // ✅ Remove patient from database after discharge
         await patientRef.remove();
 
+        console.log(`✅ Patient ${patientID} discharged & queue updated.`);
         res.json({ success: true, message: `✅ Patient ${patientID} discharged & queue updated.` });
+
     } catch (error) {
         console.error("❌ Error discharging patient:", error);
         res.status(500).json({ success: false, message: "Error discharging patient." });

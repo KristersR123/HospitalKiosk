@@ -3,11 +3,11 @@ const waitlistContainer = document.getElementById("waitlist-container");
 
 // ✅ Severity-based Wait Times (Minutes)
 const severityWaitTimes = {
-    "Red": 0,      // Immediate
-    "Orange": 10,  // Very urgent
-    "Yellow": 60,  // Urgent
-    "Green": 120,  // Standard
-    "Blue": 240    // Non-Urgent
+    "Red": 0,      
+    "Orange": 10,  
+    "Yellow": 60,  
+    "Green": 120,  
+    "Blue": 240    
 };
 
 // ✅ Function to Load & Auto-Update Waitlist in Real-Time
@@ -54,12 +54,14 @@ function loadWaitlistRealTime() {
                 listItem.id = `queue-${patient.patientID}`;
 
                 let now = new Date().getTime();
-                let elapsedTime = (now - new Date(patient.triageTime).getTime()) / 60000;
-                let baseWaitTime = severityWaitTimes[patient.severity] || 60;
-                let remainingWaitTime = Math.max(baseWaitTime * queuePosition - elapsedTime, 0);
+                let triageTime = patient.triageTime ? new Date(patient.triageTime).getTime() : null;
 
-                let statusText = patient.status === "Please See Doctor"
-                    ? "Waiting for Acceptance"
+                let elapsedTime = triageTime ? (now - triageTime) / 60000 : 0;
+                let baseWaitTime = severityWaitTimes[patient.severity] || 60;
+                let remainingWaitTime = triageTime ? Math.max(baseWaitTime * queuePosition - elapsedTime, 0) : "Unknown";
+
+                let statusText = (remainingWaitTime === "Unknown" || isNaN(remainingWaitTime)) 
+                    ? "Waiting for Data" 
                     : `<span class="countdown">${Math.floor(remainingWaitTime)} min</span>`;
 
                 listItem.innerHTML = `
