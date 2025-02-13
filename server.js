@@ -359,35 +359,40 @@ app.post("/assign-severity", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        const patientRef = db.ref(`patients/${patientID}`);
-        const snapshot = await patientRef.once("value");
+        // ✅ Search for the correct Firebase key
+        const patientsRef = db.ref("patients");
+        const snapshot = await patientsRef.once("value");
 
-        if (!snapshot.exists()) {
+        let foundPatientKey = null;
+        snapshot.forEach(childSnapshot => {
+            const patient = childSnapshot.val();
+            if (patient.patientID === patientID) { 
+                foundPatientKey = childSnapshot.key;
+            }
+        });
+
+        if (!foundPatientKey) {
+            console.log(`❌ Patient ${patientID} not found in Firebase.`);
             return res.status(404).json({ error: "Patient not found" });
         }
 
-        const patient = snapshot.val();
-        const condition = patient.condition; // ✅ Get condition
-
-        // ✅ Get queue number for this condition & severity
-        const queueRef = db.ref(`queueNumbers/${condition}/${severity}`);
-        const queueSnapshot = await queueRef.once("value");
-        const queueNumber = queueSnapshot.exists() ? queueSnapshot.val() + 1 : 1;
-
+        // ✅ Update severity and status
+        const patientRef = db.ref(`patients/${foundPatientKey}`);
         await patientRef.update({
             severity,
             status: `Queueing for ${severity}`,
-            queueNumber
+            triageTime: new Date().toISOString()
         });
 
-        await queueRef.set(queueNumber); // ✅ Update queue number in database
+        console.log(`✅ Severity assigned for patient ${patientID}.`);
+        res.json({ success: true, message: `Severity assigned for patient ${patientID}.` });
 
-        res.json({ success: true, queueNumber });
     } catch (error) {
         console.error("❌ Error assigning severity:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 
 app.post("/assign-condition", async (req, res) => {

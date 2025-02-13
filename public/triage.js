@@ -135,27 +135,27 @@ function loadPatients() {
 }
 
 // Function to Assign Severity Level
-function assignSeverity(patientKey) {
-    let severity = document.getElementById(`severity-${patientKey}`).value;
+function assignSeverity(firebaseKey) {
+    let severity = document.getElementById(`severity-${firebaseKey}`).value;
     if (!severity) {
         alert("Please select a severity level.");
         return;
     }
 
-    console.log("🛠️ Sending request with:", { patientID: patientKey, severity });
+    console.log("🛠️ Sending request with:", { patientID: firebaseKey, severity });
 
     fetch(`${RENDER_API_URL}/assign-severity`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patientID: patientKey, severity })
+        body: JSON.stringify({ patientID: firebaseKey, severity }) // ✅ Use firebaseKey instead of patientID
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert("Severity assigned successfully!");
+            alert("✅ Severity assigned successfully!");
             loadPatients();
         } else {
-            alert("Error assigning severity.");
+            alert("❌ Error assigning severity.");
         }
     })
     .catch(error => console.error("❌ Error assigning severity:", error));
