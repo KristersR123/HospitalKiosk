@@ -91,26 +91,26 @@
 const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
 const patientList = document.getElementById("patient-list");
 
+// ✅ Function to Load Patients for Triage
 function loadTriagePatientsRealTime() {
-    database.ref("patients").orderByChild("status").equalTo("Waiting for Triage").on("value", snapshot => {
+    fetch(`${RENDER_API_URL}/patients-awaiting-triage`)
+    .then(response => response.json())
+    .then(patients => {
         patientList.innerHTML = ""; // Clear the table before appending
 
-        if (!snapshot.exists()) {
+        if (!patients || patients.length === 0) {
             patientList.innerHTML = `<tr><td colspan="5">No patients awaiting triage.</td></tr>`;
             return;
         }
 
-        snapshot.forEach(childSnapshot => {
-            let patient = childSnapshot.val();
-            let patientKey = childSnapshot.key;
-
+        patients.forEach(patient => {
             let row = document.createElement("tr");
             row.innerHTML = `
                 <td>${patient.patientID}</td>
                 <td>${patient.fullName}</td>
                 <td>${patient.condition || "Not Assigned"}</td>
                 <td>
-                    <select id="severity-${patientKey}">
+                    <select id="severity-${patient.patientID}">
                         <option value="">Select Severity</option>
                         <option value="Red">Red (Immediate)</option>
                         <option value="Orange">Orange (Very Urgent)</option>
@@ -120,35 +120,34 @@ function loadTriagePatientsRealTime() {
                     </select>
                 </td>
                 <td>
-                    <button onclick="assignSeverity('${patientKey}')">Confirm</button>
+                    <button onclick="assignSeverity('${patient.patientID}')">Confirm</button>
                 </td>
             `;
 
             patientList.appendChild(row);
         });
-    });
+    })
+    .catch(error => console.error("❌ Error loading triage patients:", error));
 }
 
-// Function to Assign Severity Level
-function assignSeverity(firebaseKey) {
-    let severity = document.getElementById(`severity-${firebaseKey}`).value;
+// ✅ Function to Assign Severity Level
+function assignSeverity(patientID) {
+    let severity = document.getElementById(`severity-${patientID}`).value;
     if (!severity) {
         alert("Please select a severity level.");
         return;
     }
 
-    console.log("🛠️ Sending request with:", { patientID: firebaseKey, severity });
-
     fetch(`${RENDER_API_URL}/assign-severity`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patientID: firebaseKey, severity }) // ✅ Use firebaseKey instead of patientID
+        body: JSON.stringify({ patientID, severity })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             alert("✅ Severity assigned successfully!");
-            loadPatients();
+            loadTriagePatientsRealTime(); // Refresh patient list dynamically
         } else {
             alert("❌ Error assigning severity.");
         }
@@ -156,7 +155,8 @@ function assignSeverity(firebaseKey) {
     .catch(error => console.error("❌ Error assigning severity:", error));
 }
 
+// ✅ Automatically reload every 5 seconds for real-time updates
+setInterval(loadTriagePatientsRealTime, 5000);
 
-
-// ✅ Call this function when the page loads
+// ✅ Load patients when the page loads
 document.addEventListener("DOMContentLoaded", loadTriagePatientsRealTime);
