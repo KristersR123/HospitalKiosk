@@ -193,7 +193,7 @@ app.post("/check-in", async (req, res) => {
             firebaseKey: newPatientRef.key,
             patientID,
             fullName,
-            dateOfBirth: dob,
+            dob: dob,
             gender,
             checkInTime,
             status: "Awaiting Condition Selection"
