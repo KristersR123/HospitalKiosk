@@ -1,13 +1,20 @@
 const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
 const waitlistContainer = document.getElementById("waitlist-container");
 
+const severityWaitTimes = {
+    "Red": 0,
+    "Orange": 10,
+    "Yellow": 60,
+    "Green": 120,
+    "Blue": 240
+};
 
 // ✅ Function to Load & Auto-Update Waitlist in Real-Time
 function loadWaitlistRealTime() {
-fetch(`${RENDER_API_URL}/waitlist`)
+    fetch(`${RENDER_API_URL}/waitlist`)
     .then(response => response.json())
     .then(patients => {
-        console.log("📌 Waitlist Data:", patients); // ✅ Debugging output
+        console.log("📌 Waitlist Data:", patients); // Debugging output
 
         waitlistContainer.innerHTML = ""; // Clear the container
 
@@ -19,9 +26,9 @@ fetch(`${RENDER_API_URL}/waitlist`)
         let conditionGroups = {};
 
         patients.forEach(patient => {
-            console.log("✅ Checking patient entry:", patient); // ✅ Log patient before filtering
+            console.log("✅ Checking patient entry:", patient);
 
-            if (!patient || !patient.status) {  // ✅ Prevents errors
+            if (!patient || !patient.status) { 
                 console.warn("⚠ Skipping invalid patient entry:", patient);
                 return;
             }
@@ -53,29 +60,26 @@ fetch(`${RENDER_API_URL}/waitlist`)
                 let listItem = document.createElement("li");
                 listItem.classList.add("patient-item");
                 listItem.id = `queue-${patient.patientID}`;
-            
+
                 let now = new Date().getTime();
                 let triageTime = new Date(patient.triageTime).getTime();
                 let elapsedTime = (now - triageTime) / 60000;
-            
+                
                 let baseWaitTime = severityWaitTimes[patient.severity] || 60;
                 let remainingWaitTime = Math.max(patient.estimatedWaitTime - elapsedTime, 0);
-            
-                // 🔹 Ensure only patients with 0 minutes left are marked as "Please See Doctor"
-                let statusText = remainingWaitTime > 0 
-                    ? `<span class="countdown">${Math.floor(remainingWaitTime)} min</span>`
-                    : `<span class="ready">Please See Doctor</span>`;
-            
+
                 listItem.innerHTML = `
                     <div class="queue-patient">
                         Queue Position: <span class="queue-pos">#${queuePosition}</span><br>
-                        Estimated Wait Time: ${statusText}
+                        Estimated Wait Time: <span id="countdown-${patient.patientID}" class="countdown">${Math.floor(remainingWaitTime)} min</span>
                     </div>
                 `;
-            
+
                 queueList.appendChild(listItem);
+
+                // Start live countdown
+                startCountdown(patient.patientID, remainingWaitTime);
             });
-            
 
             conditionSection.appendChild(queueList);
             waitlistContainer.appendChild(conditionSection);
@@ -84,16 +88,27 @@ fetch(`${RENDER_API_URL}/waitlist`)
     .catch(error => console.error("❌ Error loading waitlist:", error));
 }
 
+// ✅ Function to Start Live Countdown for Each Patient
+function startCountdown(patientID, initialTime) {
+    let countdownElement = document.getElementById(`countdown-${patientID}`);
+    if (!countdownElement) return;
+
+    let timeLeft = initialTime * 60; // Convert minutes to seconds
+    let timerInterval = setInterval(() => {
+        if (timeLeft <= 0) {
+            countdownElement.innerHTML = "Please See Doctor";
+            clearInterval(timerInterval);
+        } else {
+            let minutes = Math.floor(timeLeft / 60);
+            countdownElement.innerHTML = `${minutes} min`;
+            timeLeft--;
+        }
+    }, 1000);
+}
+
 // ✅ Auto-refresh every 30 seconds
 setInterval(loadWaitlistRealTime, 30000);
 
-const severityWaitTimes = {
-    "Red": 0,
-    "Orange": 10,
-    "Yellow": 60,
-    "Green": 120,
-    "Blue": 240
-};
 
 // ✅ Ensure this runs before `loadWaitlistRealTime`
 document.addEventListener("DOMContentLoaded", () => {
