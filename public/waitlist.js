@@ -53,30 +53,29 @@ fetch(`${RENDER_API_URL}/waitlist`)
                 let listItem = document.createElement("li");
                 listItem.classList.add("patient-item");
                 listItem.id = `queue-${patient.patientID}`;
-
+            
                 let now = new Date().getTime();
                 let triageTime = new Date(patient.triageTime).getTime();
                 let elapsedTime = (now - triageTime) / 60000;
-                
+            
                 let baseWaitTime = severityWaitTimes[patient.severity] || 60;
-
-                let remainingWaitTime = patient.estimatedWaitTime !== undefined 
-                    ? Math.max(patient.estimatedWaitTime - elapsedTime, 0)
-                    : Math.max(baseWaitTime * queuePosition - elapsedTime, 0);
-
+                let remainingWaitTime = Math.max(patient.estimatedWaitTime - elapsedTime, 0);
+            
+                // 🔹 Ensure only patients with 0 minutes left are marked as "Please See Doctor"
                 let statusText = remainingWaitTime > 0 
                     ? `<span class="countdown">${Math.floor(remainingWaitTime)} min</span>`
-                    : "Please See Doctor";
-
+                    : `<span class="ready">Please See Doctor</span>`;
+            
                 listItem.innerHTML = `
                     <div class="queue-patient">
                         Queue Position: <span class="queue-pos">#${queuePosition}</span><br>
                         Estimated Wait Time: ${statusText}
                     </div>
                 `;
-
+            
                 queueList.appendChild(listItem);
             });
+            
 
             conditionSection.appendChild(queueList);
             waitlistContainer.appendChild(conditionSection);

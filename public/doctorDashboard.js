@@ -389,18 +389,12 @@ function loadDoctorQueue() {
     fetch(`${RENDER_API_URL}/doctor-queue`)
         .then(response => response.json())
         .then(patients => {
-            console.log("Doctor queue:", patients); // ✅ Debugging output
+            console.log("📌 Doctor queue:", patients); // ✅ Debugging output
+            const doctorDashboard = document.getElementById("doctor-dashboard");
+            doctorDashboard.innerHTML = "";
 
-            const queueContainer = document.getElementById("doctor-dashboard"); // Ensure element exists
-            if (!queueContainer) {
-                console.error("❌ doctorDashboard element not found.");
-                return;
-            }
-
-            queueContainer.innerHTML = ""; // ✅ Clear old list
-
-            if (!Array.isArray(patients)) {
-                console.error("❌ Expected an array but got:", patients);
+            if (!Array.isArray(patients) || patients.length === 0) {
+                console.warn("⚠ No patients ready for doctor.");
                 return;
             }
 
@@ -411,13 +405,14 @@ function loadDoctorQueue() {
                     <h2>Patient #${patient.queueNumber}</h2>
                     <p>Severity: <span class="${patient.severity.toLowerCase()}">${patient.severity}</span></p>
                     <p>Estimated Wait Time: ${patient.estimatedWaitTime} min</p>
-                    <button onclick="acceptPatient('${patient.patientID}')">Accept</button>
+                    <button onclick="acceptPatient('${patient.id}')">Accept</button>
                 `;
-                queueContainer.appendChild(patientCard);
+                doctorDashboard.appendChild(patientCard);
             });
         })
         .catch(error => console.error("❌ Error loading doctor queue:", error));
 }
+
 // Function to Accept a Patient
 function acceptPatient(patientID) {
     fetch(`${RENDER_API_URL}/accept-patient`, {

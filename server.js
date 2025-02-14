@@ -43,6 +43,7 @@ const severityWaitTimes = {
 };
 
 // ✅ Function to Monitor Queue and Update Status
+// ✅ Function to Monitor Queue and Update Status
 async function monitorQueue() {
     try {
         const patientsRef = db.ref("patients");
@@ -64,14 +65,13 @@ async function monitorQueue() {
                 let baseWaitTime = severityWaitTimes[patient.severity] || 10;
                 let remainingTime = Math.max(baseWaitTime - elapsedTime, 0);
 
-                // ✅ Update estimated wait time
+                // ✅ Update estimated wait time in Firebase
                 updates[`${patientID}/estimatedWaitTime`] = Math.floor(remainingTime);
 
-                // ✅ When wait time reaches 0, update status to "Please See Doctor"
+                // ✅ Only change status when time actually reaches 0
                 if (remainingTime <= 0 && patient.status.startsWith("Queueing for")) {
                     updates[`${patientID}/status`] = "Please See Doctor";
                 }
-                
             }
         });
 
@@ -173,6 +173,7 @@ app.get("/doctor-queue", async (req, res) => {
             .once("value");
 
         if (!snapshot.exists()) {
+            console.log("⚠ No patients are ready for a doctor.");
             return res.json([]); // ✅ Return an empty array instead of an error
         }
 
@@ -184,9 +185,10 @@ app.get("/doctor-queue", async (req, res) => {
             });
         });
 
-        // ✅ Only return the first patient ready to be accepted
+        // ✅ Sort patients by queue number so the doctor gets the first patient in line
         const firstPatient = doctorQueue.sort((a, b) => a.queueNumber - b.queueNumber)[0];
 
+        console.log("✅ First patient ready:", firstPatient);
         res.json(firstPatient ? [firstPatient] : []); // Always return an array
     } catch (error) {
         console.error("❌ Error fetching doctor queue:", error);
