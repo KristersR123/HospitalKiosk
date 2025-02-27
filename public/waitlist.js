@@ -77,7 +77,7 @@ function loadWaitlistRealTime() {
             
                 queueList.appendChild(listItem);
             
-                // ✅ Start countdown timer and pass `queueNumber`
+                // ✅ Start countdown and ensure correct queue number
                 startCountdown(patient.patientID, remainingWaitTime, groupKey, queuePosition);
             });
         
@@ -108,7 +108,7 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
             clearInterval(countdownIntervals[patientID]);
             delete countdownIntervals[patientID];
 
-            // ✅ Add the "Doctor Ready" message
+            // ✅ **NEW: Ensure the "Doctor Ready" message appears**
             updateDoctorReadyMessage(conditionKey, queueNumber);
         } else {
             let minutes = Math.floor(timeLeft / 60);
@@ -118,10 +118,13 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
     }, 1000);
 }
 
-// ✅ **Function to Display "Doctor is Ready" Message**
+// ✅ **Ensure the Doctor Ready Message Appears**
 function updateDoctorReadyMessage(conditionKey, queueNumber) {
     let conditionSection = document.querySelector(`[data-condition="${conditionKey}"]`);
-    if (!conditionSection) return;
+    if (!conditionSection) {
+        console.warn(`⚠ Condition section not found for ${conditionKey}`);
+        return;
+    }
 
     let doctorReadyDiv = conditionSection.querySelector(".doctor-ready");
     if (!doctorReadyDiv) {
