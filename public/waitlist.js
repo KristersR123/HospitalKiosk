@@ -93,6 +93,8 @@ function startCountdown(patientID, initialTime) {
     let countdownElement = document.getElementById(`countdown-${patientID}`);
     if (!countdownElement) return;
 
+    console.log(`⏳ [Countdown Started] ${patientID}: timeLeft=${initialTime} min`);
+    
     // ✅ Clear any existing interval for this patient
     if (countdownIntervals[patientID]) {
         clearInterval(countdownIntervals[patientID]);
@@ -122,7 +124,7 @@ document.addEventListener("DOMContentLoaded", () => {
     loadWaitlistRealTime();
 });
 
-console.log(`⏳ [Countdown Started] ${patientID}: timeLeft=${initialTime} min`);
+
 
 
 // // ✅ Load waitlist when the page loads
