@@ -47,39 +47,40 @@ function loadWaitlistRealTime() {
         Object.keys(conditionGroups).forEach(groupKey => {
             let [condition, severity] = groupKey.split("-");
             let sortedQueue = conditionGroups[groupKey].sort((a, b) => a.queueNumber - b.queueNumber);
-
+        
             let conditionSection = document.createElement("div");
             conditionSection.classList.add("condition-section");
+            conditionSection.setAttribute("data-condition", groupKey); // ✅ Add identifier
             conditionSection.innerHTML = `
                 <div class="condition-title">${condition} - 
                     <span class="${severity.toLowerCase()}">${severity} Severity</span>
                 </div>
             `;
-
+        
             let queueList = document.createElement("ul");
             queueList.classList.add("patient-list");
-
+        
             sortedQueue.forEach((patient, index) => {
                 let queuePosition = index + 1;
                 let listItem = document.createElement("li");
                 listItem.classList.add("patient-item");
                 listItem.id = `queue-${patient.patientID}`;
-
+        
                 let remainingWaitTime = patient.estimatedWaitTime !== undefined ? patient.estimatedWaitTime : severityWaitTimes[patient.severity] || 60;
-
+        
                 listItem.innerHTML = `
                     <div class="queue-patient">
                         Queue Position: <span class="queue-pos">#${queuePosition}</span><br>
                         Estimated Wait Time: <span id="countdown-${patient.patientID}" class="countdown">${Math.floor(remainingWaitTime)} min</span>
                     </div>
                 `;
-
+        
                 queueList.appendChild(listItem);
-
-                // ✅ Start countdown timer
-                startCountdown(patient.patientID, remainingWaitTime);
+        
+                // ✅ Start countdown timer and pass conditionKey
+                startCountdown(patient.patientID, remainingWaitTime, groupKey);
             });
-
+        
             conditionSection.appendChild(queueList);
             waitlistContainer.appendChild(conditionSection);
         });
@@ -89,12 +90,12 @@ function loadWaitlistRealTime() {
 
 let countdownIntervals = {}; // Track active countdowns
 
-function startCountdown(patientID, initialTime) {
+function startCountdown(patientID, initialTime, conditionKey) {
     let countdownElement = document.getElementById(`countdown-${patientID}`);
     if (!countdownElement) return;
 
     console.log(`⏳ [Countdown Started] ${patientID}: timeLeft=${initialTime} min`);
-    
+
     // ✅ Clear any existing interval for this patient
     if (countdownIntervals[patientID]) {
         clearInterval(countdownIntervals[patientID]);
@@ -107,12 +108,34 @@ function startCountdown(patientID, initialTime) {
             countdownElement.innerHTML = "Please See Doctor";
             clearInterval(countdownIntervals[patientID]);
             delete countdownIntervals[patientID];
+
+            // ✅ Add patient to "Doctor Ready" message section
+            updateDoctorReadyMessage(conditionKey, patientID);
+
         } else {
             let minutes = Math.floor(timeLeft / 60);
             countdownElement.innerHTML = `${minutes} min`;
         }
         timeLeft--;
     }, 1000);
+}
+
+// ✅ Function to Update "Doctor Ready" Message
+function updateDoctorReadyMessage(conditionKey, patientID) {
+    let conditionSection = document.querySelector(`[data-condition="${conditionKey}"]`);
+    if (!conditionSection) return;
+
+    let doctorReadyDiv = conditionSection.querySelector(".doctor-ready");
+    if (!doctorReadyDiv) {
+        doctorReadyDiv = document.createElement("div");
+        doctorReadyDiv.classList.add("doctor-ready");
+        doctorReadyDiv.style.fontWeight = "bold";
+        doctorReadyDiv.style.color = "#28a745"; // Green text
+        doctorReadyDiv.style.marginTop = "10px";
+        conditionSection.appendChild(doctorReadyDiv);
+    }
+
+    doctorReadyDiv.innerHTML = `🩺 Patient #${patientID} - Doctor is Ready for You`;
 }
 
 // ✅ Auto-refresh every 30 seconds
