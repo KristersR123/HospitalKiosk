@@ -49,9 +49,6 @@ async function monitorQueue() {
         const patientsRef = db.ref("patients");
         const snapshot = await patientsRef.once("value");
 
-        console.log(`⏳ [Monitor Queue] ${patientID}: elapsed=${elapsedTime} min, remaining=${remainingTime} min`);
-
-
         if (!snapshot.exists()) return;
 
         const now = Date.now();
@@ -59,7 +56,7 @@ async function monitorQueue() {
 
         snapshot.forEach(childSnapshot => {
             const patient = childSnapshot.val();
-            const patientID = childSnapshot.key;
+            const patientID = childSnapshot.key;  // ✅ Define `patientID` here
 
             if (patient.status.startsWith("Queueing for") && patient.triageTime) {
                 const triageTime = new Date(patient.triageTime).getTime();
@@ -69,25 +66,20 @@ async function monitorQueue() {
                     return;
                 }
 
-                const elapsedTime = Math.floor((now - triageTime) / 60000); // Minutes since triage
-
-                if (elapsedTime < 0) {
-                    console.warn(`⚠ Warning: Negative elapsed time detected for ${patientID}`);
-                    return;
-                }
+                const elapsedTime = Math.floor((now - triageTime) / 60000); // Convert to minutes
+                if (elapsedTime < 0) return;
 
                 let baseWaitTime = severityWaitTimes[patient.severity] || 60;
                 let remainingTime = Math.max(baseWaitTime - elapsedTime, 0);
 
-                console.log(`➡ Updating ${patientID}: elapsedTime=${elapsedTime}, remainingTime=${remainingTime}`);
+                console.log(`⏳ [Monitor Queue] Patient: ${patientID} | Elapsed: ${elapsedTime} min | Remaining: ${remainingTime} min`);
 
-                // ✅ Only update `estimatedWaitTime` if it's changed
+                // ✅ Update `estimatedWaitTime` in Firebase only if it changed
                 if (remainingTime !== patient.estimatedWaitTime) {
                     updates[`${patientID}/estimatedWaitTime`] = remainingTime;
-                    console.log(`✅ Updating Patient ${patientID}: New Remaining Time = ${remainingTime} mins`);
                 }
 
-                // ✅ Only change status when time reaches 0
+                // ✅ Update status when time reaches 0
                 if (remainingTime <= 0 && patient.status.startsWith("Queueing for")) {
                     updates[`${patientID}/status`] = "Please See Doctor";
                 }
@@ -102,6 +94,31 @@ async function monitorQueue() {
         console.error("❌ Error monitoring queue:", error);
     }
 }
+
+async function checkFirebaseWaitTimes() {
+    try {
+        console.log("🔍 Checking estimated wait times...");
+
+        const snapshot = await db.ref("patients").once("value");
+
+        if (!snapshot.exists()) {
+            console.log("⚠ No patients found in the database.");
+            return;
+        }
+
+        snapshot.forEach(childSnapshot => {
+            console.log(
+                `🩺 Patient ${childSnapshot.val().patientID} => Estimated Wait Time: ${childSnapshot.val().estimatedWaitTime || "N/A"} min`
+            );
+        });
+
+    } catch (error) {
+        console.error("❌ Error fetching wait times:", error);
+    }
+}
+
+// ✅ Run this function once when the server starts
+checkFirebaseWaitTimes();
 
 function debounce(func, delay) {
     let timer;
