@@ -65,7 +65,8 @@ function loadWaitlistRealTime() {
                 let triageTime = new Date(patient.triageTime).getTime();
                 let elapsedTime = (now - triageTime) / 60000;
                 
-                let remainingWaitTime = Math.max((patient.estimatedWaitTime || baseWaitTime) - elapsedTime, 0);
+                let baseWaitTime = severityWaitTimes[patient.severity] || 60; // Assign default wait time
+                let remainingWaitTime = Math.max((patient.estimatedWaitTime !== undefined ? patient.estimatedWaitTime : baseWaitTime) - elapsedTime, 0);
 
                 listItem.innerHTML = `
                     <div class="queue-patient">
