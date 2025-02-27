@@ -31,6 +31,8 @@ function loadWaitlistRealTime() {
             delete countdownIntervals[patientID];
         });
 
+        let firstPatientInQueue = null; // Track the first patient ready for doctor
+
         patients.forEach(patient => {
             if (!patient || !patient.status) {
                 console.warn("⚠ Skipping invalid patient entry:", patient);
@@ -42,6 +44,11 @@ function loadWaitlistRealTime() {
                 conditionGroups[key] = [];
             }
             conditionGroups[key].push(patient);
+
+            // ✅ Check if this patient is the first one who needs to see a doctor
+            if (patient.status === "Please See Doctor" && (!firstPatientInQueue || patient.queueNumber < firstPatientInQueue.queueNumber)) {
+                firstPatientInQueue = patient;
+            }
         });
 
         Object.keys(conditionGroups).forEach(groupKey => {
@@ -56,34 +63,39 @@ function loadWaitlistRealTime() {
                     <span class="${severity.toLowerCase()}">${severity} Severity</span>
                 </div>
             `;
-        
+
             let queueList = document.createElement("ul");
             queueList.classList.add("patient-list");
-        
+
             sortedQueue.forEach((patient, index) => {
                 let queuePosition = index + 1;
                 let listItem = document.createElement("li");
                 listItem.classList.add("patient-item");
                 listItem.id = `queue-${patient.patientID}`;
-            
+
                 let remainingWaitTime = patient.estimatedWaitTime !== undefined ? patient.estimatedWaitTime : severityWaitTimes[patient.severity] || 60;
-            
+
                 listItem.innerHTML = `
                     <div class="queue-patient">
                         Queue Position: <span class="queue-pos">#${queuePosition}</span><br>
                         Estimated Wait Time: <span id="countdown-${patient.patientID}" class="countdown">${Math.floor(remainingWaitTime)} min</span>
                     </div>
                 `;
-            
+
                 queueList.appendChild(listItem);
-            
+
                 // ✅ Start countdown and ensure correct queue number
                 startCountdown(patient.patientID, remainingWaitTime, groupKey, queuePosition);
             });
-        
+
             conditionSection.appendChild(queueList);
             waitlistContainer.appendChild(conditionSection);
         });
+
+        // ✅ Display "Doctor is Ready" message if a patient has status "Please See Doctor"
+        if (firstPatientInQueue) {
+            updateDoctorReadyMessage(`${firstPatientInQueue.condition}-${firstPatientInQueue.severity}`, firstPatientInQueue.queueNumber);
+        }
     })
     .catch(error => console.error("❌ Error loading waitlist:", error));
 }
@@ -118,7 +130,8 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
     }, 1000);
 }
 
-// ✅ **Ensure the Doctor Ready Message Appears**
+
+// ✅ Ensure the Doctor Ready Message Appears
 function updateDoctorReadyMessage(conditionKey, queueNumber) {
     let conditionSection = document.querySelector(`[data-condition="${conditionKey}"]`);
     if (!conditionSection) {
