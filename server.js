@@ -372,7 +372,7 @@ app.post("/accept-patient", async (req, res) => {
 
 
 
-// ✅ API: Discharge Patient (Now Calls adjustWaitTimes)
+// ✅ Discharge Patient & Adjust Queue Times
 app.post("/discharge-patient", async (req, res) => {
     try {
         const { patientID } = req.body;
@@ -391,9 +391,11 @@ app.post("/discharge-patient", async (req, res) => {
         const patient = snapshot.val();
         const acceptedTime = new Date(patient.acceptedTime).getTime();
         const now = Date.now();
-        const doctorTimeSpent = (now - acceptedTime) / 60000; // ✅ Time spent in minutes
+        const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000); // Convert to minutes
 
-        // ✅ Adjust wait times of remaining patients in this condition & severity queue
+        console.log(`✅ Patient ${patientID} spent ${elapsedDoctorTime} minutes with the doctor.`);
+
+        // ✅ Update Wait Times for Other Patients in the Same Condition & Severity
         const condition = patient.condition;
         const severity = patient.severity;
 
@@ -411,17 +413,28 @@ app.post("/discharge-patient", async (req, res) => {
                     nextPatient.condition === condition &&
                     nextPatient.severity === severity
                 ) {
-                    // ✅ Adjust wait time for remaining patients
-                    const newWaitTime = Math.max(nextPatient.estimatedWaitTime - doctorTimeSpent, 0);
+                    let newWaitTime;
+                    
+                    if (elapsedDoctorTime <= 5) {
+                        // ✅ Reduce wait times by 5 min
+                        newWaitTime = Math.max(nextPatient.estimatedWaitTime - 5, 0);
+                    } else if (elapsedDoctorTime > 10) {
+                        // ✅ Increase wait times by 5 min
+                        newWaitTime = nextPatient.estimatedWaitTime + 5;
+                    } else {
+                        // ✅ No change in wait times if between 5-10 min
+                        newWaitTime = nextPatient.estimatedWaitTime;
+                    }
+
                     updates[`${nextPatientID}/estimatedWaitTime`] = newWaitTime;
                 }
             });
 
             await db.ref("patients").update(updates);
-            console.log(`✅ Wait times updated based on doctor time: -${doctorTimeSpent} mins.`);
+            console.log(`✅ Queue times adjusted based on doctor time.`);
         }
 
-        // ✅ Remove patient from database after discharge
+        // ✅ Remove discharged patient from database
         await patientRef.remove();
 
         res.json({ success: true, message: `✅ Patient ${patientID} discharged & queue updated.` });
@@ -430,7 +443,6 @@ app.post("/discharge-patient", async (req, res) => {
         res.status(500).json({ success: false, message: "Error discharging patient." });
     }
 });
-
 
 
 app.post("/assign-severity", async (req, res) => {
