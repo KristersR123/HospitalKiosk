@@ -1,7 +1,8 @@
 const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
 const doctorDashboard = document.getElementById("doctor-dashboard");
 
-// Function to Load Doctor's Dashboard
+let doctorTimers = {}; // Track active timers
+
 function loadDoctorQueue() {
     fetch(`${RENDER_API_URL}/doctor-queue`)
         .then(response => response.json())
@@ -19,18 +20,25 @@ function loadDoctorQueue() {
                 patientCard.classList.add("patient-card");
                 patientCard.id = `doctor-patient-${patient.id}`;
 
-                let timerDisplay = patient.status === "With Doctor" ? `<p>Time With Doctor: <span id="timer-${patient.id}">0 min</span></p>` : "";
+                let statusText = patient.status === "With Doctor" ? "Being Seen" : "Waiting for Doctor";
+                let timerDisplay = patient.status === "With Doctor" ? 
+                    `<p>Time With Doctor: <span id="timer-${patient.id}">0 min</span></p>` : "";
 
                 patientCard.innerHTML = `
                     <h2>Patient #${patient.queueNumber}</h2>
                     <p>Severity: <span class="${patient.severity.toLowerCase()}">${patient.severity}</span></p>
-                    <p>Status: <span id="status-${patient.id}">${patient.status}</span></p>
+                    <p>Status: <span id="status-${patient.id}">${statusText}</span></p>
                     ${timerDisplay}
                     ${patient.status === "Please See Doctor" ? `<button class="accept-button" onclick="acceptPatient('${patient.id}')">Accept</button>` : ""}
                     ${patient.status === "With Doctor" ? `<button class="discharge-button" onclick="dischargePatient('${patient.id}')">Discharge</button>` : ""}
                 `;
 
                 doctorDashboard.appendChild(patientCard);
+
+                // ✅ If patient is already "With Doctor", start the timer
+                if (patient.status === "With Doctor") {
+                    startDoctorTimer(patient.id, patient.acceptedTime);
+                }
             });
         })
         .catch(error => console.error("❌ Error loading doctor queue:", error));
@@ -48,26 +56,37 @@ function acceptPatient(patientID) {
     .then(() => {
         alert(`✅ Patient ${patientID} has been accepted by the doctor.`);
         
-        document.getElementById(`status-${patientID}`).innerText = "With Doctor";
+        document.getElementById(`status-${patientID}`).innerText = "Being Seen";
         document.querySelector(`#doctor-patient-${patientID} .accept-button`).style.display = "none";
         document.querySelector(`#doctor-patient-${patientID} .discharge-button`).style.display = "inline-block";
 
-        startDoctorTimer(patientID);
+        // ✅ Start tracking time with doctor
+        let acceptedTime = new Date().toISOString();
+        startDoctorTimer(patientID, acceptedTime);
+
         loadDoctorQueue();
     })
     .catch(error => console.error("❌ Error accepting patient:", error));
 }
 
-// ✅ Track Time a Patient Spends With the Doctor
-let doctorTimers = {};
 
 
-function startDoctorTimer(patientID) {
-    let timeSpent = 0;
-    
+function startDoctorTimer(patientID, acceptedTime) {
+    // ✅ Convert acceptedTime to a Date object
+    let startTime = new Date(acceptedTime).getTime();
+
+    if (doctorTimers[patientID]) {
+        clearInterval(doctorTimers[patientID]); // Stop previous timer if any
+    }
+
     doctorTimers[patientID] = setInterval(() => {
-        timeSpent++;
-        document.getElementById(`timer-${patientID}`).innerHTML = `${timeSpent} min`;
+        let now = new Date().getTime();
+        let elapsedMinutes = Math.floor((now - startTime) / 60000); // Convert to minutes
+        let timerElement = document.getElementById(`timer-${patientID}`);
+
+        if (timerElement) {
+            timerElement.innerHTML = `${elapsedMinutes} min`;
+        }
     }, 60000); // ✅ Updates every 1 minute
 }
 
@@ -81,10 +100,10 @@ function dischargePatient(patientID) {
         body: JSON.stringify({ patientID })
     })
     .then(response => response.json())
-    .then(data => {
+    .then(() => {
         alert(`✅ Patient ${patientID} has been discharged.`);
 
-        // ✅ Remove patient from dashboard
+        // ✅ Remove patient from doctor dashboard
         document.getElementById(`doctor-patient-${patientID}`).remove();
         loadDoctorQueue();
     })
