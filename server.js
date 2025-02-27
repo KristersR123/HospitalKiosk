@@ -219,32 +219,34 @@ app.get("/doctor-queue", async (req, res) => {
     try {
         const snapshot = await db.ref("patients")
             .orderByChild("status")
-            .equalTo("Please See Doctor")
             .once("value");
 
         if (!snapshot.exists()) {
-            console.log("⚠ No patients are ready for a doctor.");
-            return res.json([]); // ✅ Return an empty array instead of an error
+            console.log("⚠ No patients are currently being seen.");
+            return res.json([]);
         }
 
         const doctorQueue = [];
         snapshot.forEach(childSnapshot => {
-            doctorQueue.push({
-                id: childSnapshot.key,
-                ...childSnapshot.val()
-            });
+            const patient = childSnapshot.val();
+
+            // ✅ Include both "Please See Doctor" and "With Doctor"
+            if (patient.status === "Please See Doctor" || patient.status === "With Doctor") {
+                doctorQueue.push({
+                    id: childSnapshot.key,
+                    ...patient
+                });
+            }
         });
 
-        // ✅ Sort patients by queue number so the doctor gets the first patient in line
-        const firstPatient = doctorQueue.sort((a, b) => a.queueNumber - b.queueNumber)[0];
-
-        console.log("✅ First patient ready:", firstPatient);
-        res.json(firstPatient ? [firstPatient] : []); // Always return an array
+        console.log("✅ Doctor queue updated:", doctorQueue);
+        res.json(doctorQueue);
     } catch (error) {
         console.error("❌ Error fetching doctor queue:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 
 
 app.get("/patients-awaiting-triage", async (req, res) => {
