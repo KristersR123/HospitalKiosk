@@ -60,14 +60,27 @@ async function monitorQueue() {
 
             if (patient.status.startsWith("Queueing for") && patient.triageTime) {
                 const triageTime = new Date(patient.triageTime).getTime();
-                const elapsedTime = (now - triageTime) / 60000; // Convert to minutes
+                
+                if (isNaN(triageTime)) {
+                    console.warn(`⚠ Warning: Invalid triageTime for patient ${patientID}`, patient.triageTime);
+                    return;
+                }
+
+                const elapsedTime = Math.floor((now - triageTime) / 60000); // Convert to minutes
+                
+                if (elapsedTime < 0) {
+                    console.warn(`⚠ Warning: Negative elapsed time detected for ${patientID}`);
+                    return;
+                }
 
                 let remainingTime = Math.max(patient.estimatedWaitTime - elapsedTime, 0);
 
-                // ✅ Update estimated wait time in Firebase
-                updates[`${patientID}/estimatedWaitTime`] = Math.floor(remainingTime);
+                console.log(`➡ Updating ${patientID}: elapsedTime=${elapsedTime}, remainingTime=${remainingTime}`);
 
-                // ✅ Only change status when time actually reaches 0
+                // ✅ Update estimated wait time in Firebase
+                updates[`${patientID}/estimatedWaitTime`] = remainingTime;
+
+                // ✅ Only change status when time reaches 0
                 if (remainingTime <= 0 && patient.status.startsWith("Queueing for")) {
                     updates[`${patientID}/status`] = "Please See Doctor";
                 }
@@ -390,7 +403,6 @@ app.post("/assign-severity", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        // ✅ Define severity-based wait times
         const severityWaitTimes = {
             "Red": 0,
             "Orange": 10,
@@ -399,9 +411,7 @@ app.post("/assign-severity", async (req, res) => {
             "Blue": 240
         };
 
-        const baseWaitTime = severityWaitTimes[severity] || 60; // Default 60 mins
-
-        // ✅ Find the correct patient in Firebase
+        const baseWaitTime = severityWaitTimes[severity] || 60;
         const patientsRef = db.ref("patients");
         const snapshot = await patientsRef.once("value");
 
@@ -421,7 +431,6 @@ app.post("/assign-severity", async (req, res) => {
             return res.status(404).json({ error: "Patient not found" });
         }
 
-        // ✅ Find the last patient’s wait time in the same condition/severity queue
         snapshot.forEach(childSnapshot => {
             const patient = childSnapshot.val();
             if (
@@ -433,13 +442,8 @@ app.post("/assign-severity", async (req, res) => {
             }
         });
 
-        // ✅ Only update the estimated wait time for the specific patient being assigned severity
-        await db.ref(`patients/${foundPatientKey}`).update({severity,estimatedWaitTime: lastWaitTime + baseWaitTime,  // Only increment for the newly assigned patient
-                status: `Queueing for ${severity}`,
-                triageTime: new Date().toISOString()
-            });
+        const estimatedWaitTime = lastWaitTime + baseWaitTime;
 
-        // ✅ Update patient record
         await db.ref(`patients/${foundPatientKey}`).update({
             severity,
             estimatedWaitTime,
@@ -448,11 +452,11 @@ app.post("/assign-severity", async (req, res) => {
         });
 
         console.log(`✅ Severity assigned for patient ${patientID} with wait time ${estimatedWaitTime} min.`);
-        res.json({ success: true, estimatedWaitTime });
 
+        res.json({ success: true, estimatedWaitTime }); // ✅ Ensure a proper response is returned
     } catch (error) {
         console.error("❌ Error assigning severity:", error);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ error: "Internal server error", details: error.message });
     }
 });
 
@@ -502,8 +506,16 @@ app.post("/assign-condition", async (req, res) => {
     }
 });
 
+async function monitorQueueLoop() {
+    await monitorQueue();
+    setTimeout(monitorQueueLoop, 60000); // Run again after 60s
+}
+
+// Start monitoring loop
+monitorQueueLoop();
+
 // ✅ Start Server
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
-    setInterval(monitorQueue, 60000); // ✅ Auto-update queue every 60s
+
 });
