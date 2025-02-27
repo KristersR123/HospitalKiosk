@@ -17,12 +17,6 @@ function loadWaitlistRealTime() {
         
         console.log("📌 Waitlist Data:", patients); // Debugging output
 
-        console.log("🟢 Patient Data:", patient);
-        console.log("➡ Severity:", patient.severity);
-        console.log("➡ Base Wait Time:", baseWaitTime);
-        console.log("➡ Estimated Wait Time from Backend:", patient.estimatedWaitTime);
-        console.log("➡ Calculated Remaining Wait Time:", remainingWaitTime);
-
         waitlistContainer.innerHTML = ""; // Clear the container
 
         if (!patients || patients.length === 0) {
@@ -75,6 +69,13 @@ function loadWaitlistRealTime() {
                 let baseWaitTime = severityWaitTimes[patient.severity] || 60; // Get base time for severity
                 let estimatedWaitTime = (patient.estimatedWaitTime !== undefined) ? patient.estimatedWaitTime : baseWaitTime;
                 let remainingWaitTime = Math.max(estimatedWaitTime - elapsedTime, 0);
+
+                console.log("🟢 Patient Data:", patient);
+                console.log("➡ Severity:", patient.severity);
+                console.log("➡ Base Wait Time:", baseWaitTime);
+                console.log("➡ Estimated Wait Time from Backend:", patient.estimatedWaitTime);
+                console.log("➡ Calculated Remaining Wait Time:", remainingWaitTime);
+
 
                 listItem.innerHTML = `
                     <div class="queue-patient">
