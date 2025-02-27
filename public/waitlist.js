@@ -73,8 +73,8 @@ function loadWaitlistRealTime() {
                 let elapsedTime = (now - triageTime) / 60000;
                 if (isNaN(elapsedTime)) elapsedTime = 0; // Ensure it is a valid number
                 
-                let baseWaitTime = severityWaitTimes[patient.severity] || 60;
-                let estimatedWaitTime = (patient.estimatedWaitTime !== undefined) ? patient.estimatedWaitTime : baseWaitTime;
+                // let baseWaitTime = severityWaitTimes[patient.severity] || 60;
+                let estimatedWaitTime = (patient.estimatedWaitTime !== undefined);
                 let remainingWaitTime = Math.max(estimatedWaitTime - elapsedTime, 0);
 
                 // Add to accumulated wait time for next patient

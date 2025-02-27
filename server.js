@@ -42,7 +42,7 @@ const severityWaitTimes = {
     "Blue": 240
 };
 
-// ✅ Function to Monitor Queue and Update Status
+
 // ✅ Function to Monitor Queue and Update Status
 async function monitorQueue() {
     try {
@@ -62,8 +62,7 @@ async function monitorQueue() {
                 const triageTime = new Date(patient.triageTime).getTime();
                 const elapsedTime = (now - triageTime) / 60000; // Convert to minutes
 
-                let baseWaitTime = severityWaitTimes[patient.severity] || 10;
-                let remainingTime = Math.max(baseWaitTime - elapsedTime, 0);
+                let remainingTime = Math.max(patient.estimatedWaitTime - elapsedTime, 0);
 
                 // ✅ Update estimated wait time in Firebase
                 updates[`${patientID}/estimatedWaitTime`] = Math.floor(remainingTime);
@@ -391,7 +390,7 @@ app.post("/assign-severity", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        // ✅ Define base wait times per severity
+        // ✅ Define severity-based wait times
         const severityWaitTimes = {
             "Red": 0,
             "Orange": 10,
@@ -400,16 +399,21 @@ app.post("/assign-severity", async (req, res) => {
             "Blue": 240
         };
 
-        const baseWaitTime = severityWaitTimes[severity] || 60;
+        const baseWaitTime = severityWaitTimes[severity] || 60; // Default 60 mins
 
         // ✅ Find the correct patient in Firebase
         const patientsRef = db.ref("patients");
         const snapshot = await patientsRef.once("value");
 
         let foundPatientKey = null;
+        let condition = null;
+        let lastWaitTime = 0;
+
         snapshot.forEach(childSnapshot => {
-            if (childSnapshot.val().patientID === patientID) {
+            const patient = childSnapshot.val();
+            if (patient.patientID === patientID) {
                 foundPatientKey = childSnapshot.key;
+                condition = patient.condition;
             }
         });
 
@@ -417,35 +421,27 @@ app.post("/assign-severity", async (req, res) => {
             return res.status(404).json({ error: "Patient not found" });
         }
 
-        // ✅ Find last patient in queue for same condition & severity
-        const condition = snapshot.child(foundPatientKey).val().condition;
-        let lastWaitTime = 0;
-        let lastPatientTime = 0;
-
+        // ✅ Find the last patient’s wait time in the same condition/severity queue
         snapshot.forEach(childSnapshot => {
             const patient = childSnapshot.val();
-            if (patient.condition === condition && patient.severity === severity) {
-                if (patient.estimatedWaitTime > lastWaitTime) {
-                    lastWaitTime = patient.estimatedWaitTime; // Highest existing wait time
-                    lastPatientTime = new Date(patient.triageTime).getTime(); // Last patient's triage time
-                }
+            if (
+                patient.condition === condition &&
+                patient.severity === severity &&
+                patient.status.startsWith("Queueing for")
+            ) {
+                lastWaitTime = Math.max(lastWaitTime, patient.estimatedWaitTime);
             }
         });
 
-        // ✅ Check elapsed time since last patient
-        const now = new Date().getTime();
-        const elapsedSinceLastPatient = (now - lastPatientTime) / 60000; // in minutes
-
-        // ✅ Assign new wait time (adjusted for elapsed time)
-        const estimatedWaitTime = Math.max(lastWaitTime + baseWaitTime - elapsedSinceLastPatient, baseWaitTime);
-        const triageTime = new Date().toISOString();
+        // ✅ New patient's estimated wait time = last wait time + base wait time
+        const estimatedWaitTime = lastWaitTime > 0 ? lastWaitTime + baseWaitTime : baseWaitTime;
 
         // ✅ Update patient record
         await db.ref(`patients/${foundPatientKey}`).update({
             severity,
-            estimatedWaitTime: Math.ceil(estimatedWaitTime), // Round up to avoid decimals
+            estimatedWaitTime,
             status: `Queueing for ${severity}`,
-            triageTime
+            triageTime: new Date().toISOString()
         });
 
         console.log(`✅ Severity assigned for patient ${patientID} with wait time ${estimatedWaitTime} min.`);
