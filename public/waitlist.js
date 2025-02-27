@@ -14,7 +14,14 @@ function loadWaitlistRealTime() {
     fetch(`${RENDER_API_URL}/waitlist`)
     .then(response => response.json())
     .then(patients => {
+        
         console.log("📌 Waitlist Data:", patients); // Debugging output
+
+        console.log("🟢 Patient Data:", patient);
+        console.log("➡ Severity:", patient.severity);
+        console.log("➡ Base Wait Time:", baseWaitTime);
+        console.log("➡ Estimated Wait Time from Backend:", patient.estimatedWaitTime);
+        console.log("➡ Calculated Remaining Wait Time:", remainingWaitTime);
 
         waitlistContainer.innerHTML = ""; // Clear the container
 
@@ -65,8 +72,9 @@ function loadWaitlistRealTime() {
                 let triageTime = new Date(patient.triageTime).getTime();
                 let elapsedTime = (now - triageTime) / 60000;
                 
-                let baseWaitTime = severityWaitTimes[patient.severity] || 60; // Assign default wait time
-                let remainingWaitTime = Math.max((patient.estimatedWaitTime !== undefined ? patient.estimatedWaitTime : baseWaitTime) - elapsedTime, 0);
+                let baseWaitTime = severityWaitTimes[patient.severity] || 60; // Get base time for severity
+                let estimatedWaitTime = (patient.estimatedWaitTime !== undefined) ? patient.estimatedWaitTime : baseWaitTime;
+                let remainingWaitTime = Math.max(estimatedWaitTime - elapsedTime, 0);
 
                 listItem.innerHTML = `
                     <div class="queue-patient">
