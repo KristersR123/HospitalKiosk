@@ -49,6 +49,9 @@ async function monitorQueue() {
         const patientsRef = db.ref("patients");
         const snapshot = await patientsRef.once("value");
 
+        console.log(`⏳ [Monitor Queue] ${patientID}: elapsed=${elapsedTime} min, remaining=${remainingTime} min`);
+
+
         if (!snapshot.exists()) return;
 
         const now = Date.now();
@@ -60,27 +63,28 @@ async function monitorQueue() {
 
             if (patient.status.startsWith("Queueing for") && patient.triageTime) {
                 const triageTime = new Date(patient.triageTime).getTime();
-                
+
                 if (isNaN(triageTime)) {
                     console.warn(`⚠ Warning: Invalid triageTime for patient ${patientID}`, patient.triageTime);
                     return;
                 }
 
-                const elapsedTime = Math.floor((now - triageTime) / 60000); // Convert to minutes
-                
+                const elapsedTime = Math.floor((now - triageTime) / 60000); // Minutes since triage
+
                 if (elapsedTime < 0) {
                     console.warn(`⚠ Warning: Negative elapsed time detected for ${patientID}`);
                     return;
                 }
 
-                let remainingTime = Math.max(patient.estimatedWaitTime - elapsedTime, 0);
+                let baseWaitTime = severityWaitTimes[patient.severity] || 60;
+                let remainingTime = Math.max(baseWaitTime - elapsedTime, 0);
 
                 console.log(`➡ Updating ${patientID}: elapsedTime=${elapsedTime}, remainingTime=${remainingTime}`);
 
-                // ✅ Update estimated wait time in Firebase
-                // updates[`${patientID}/estimatedWaitTime`] = remainingTime;
-                if (remainingTime !== patient.estimatedWaitTime) { // Prevent unnecessary writes
+                // ✅ Only update `estimatedWaitTime` if it's changed
+                if (remainingTime !== patient.estimatedWaitTime) {
                     updates[`${patientID}/estimatedWaitTime`] = remainingTime;
+                    console.log(`✅ Updating Patient ${patientID}: New Remaining Time = ${remainingTime} mins`);
                 }
 
                 // ✅ Only change status when time reaches 0
@@ -90,8 +94,10 @@ async function monitorQueue() {
             }
         });
 
-        await db.ref("patients").update(updates);
-        console.log("✅ Queue updated successfully.");
+        if (Object.keys(updates).length > 0) {
+            await db.ref("patients").update(updates);
+            console.log("✅ Queue updated successfully.");
+        }
     } catch (error) {
         console.error("❌ Error monitoring queue:", error);
     }

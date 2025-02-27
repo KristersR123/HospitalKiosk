@@ -14,9 +14,9 @@ function loadWaitlistRealTime() {
     fetch(`${RENDER_API_URL}/waitlist`)
     .then(response => response.json())
     .then(patients => {
-        console.log("📌 Waitlist Data:", patients); // Debugging output
+        console.log("📌 Waitlist Data:", patients);
 
-        waitlistContainer.innerHTML = ""; // Clear the container
+        waitlistContainer.innerHTML = "";
 
         if (!patients || patients.length === 0) {
             waitlistContainer.innerHTML = "<p>No patients in the waitlist.</p>";
@@ -24,13 +24,15 @@ function loadWaitlistRealTime() {
         }
 
         let conditionGroups = {};
-        Object.keys(countdownIntervals).forEach(patientID => clearInterval(countdownIntervals[patientID])); // ✅ Clear old timers
-        countdownIntervals = {}; // ✅ Reset tracking
+
+        // ✅ Clear all countdown timers before reloading data
+        Object.keys(countdownIntervals).forEach(patientID => {
+            clearInterval(countdownIntervals[patientID]);
+            delete countdownIntervals[patientID];
+        });
 
         patients.forEach(patient => {
-            console.log("✅ Checking patient entry:", patient);
-
-            if (!patient || !patient.status) { 
+            if (!patient || !patient.status) {
                 console.warn("⚠ Skipping invalid patient entry:", patient);
                 return;
             }
@@ -63,21 +65,7 @@ function loadWaitlistRealTime() {
                 listItem.classList.add("patient-item");
                 listItem.id = `queue-${patient.patientID}`;
 
-                let now = new Date().getTime();
-                let triageTime = new Date(patient.triageTime).getTime();
-                if (isNaN(triageTime) || triageTime === 0) {
-                    console.warn("⚠ Warning: Invalid triageTime for patient", patient);
-                    triageTime = now; // Default to now if invalid
-                }
-                let elapsedTime = (now - triageTime) / 60000;
-                if (isNaN(elapsedTime)) elapsedTime = 0; // Ensure it is a valid number
-                
-                let estimatedWaitTime = patient.estimatedWaitTime !== undefined ? patient.estimatedWaitTime : severityWaitTimes[patient.severity] || 60;
-                let remainingWaitTime = Math.max(estimatedWaitTime - elapsedTime, 0);
-
-                console.log("➡ Triage Time:", triageTime);
-                console.log("➡ Elapsed Time:", elapsedTime);
-                console.log("➡ Remaining Wait Time:", remainingWaitTime);
+                let remainingWaitTime = patient.estimatedWaitTime !== undefined ? patient.estimatedWaitTime : severityWaitTimes[patient.severity] || 60;
 
                 listItem.innerHTML = `
                     <div class="queue-patient">
@@ -99,28 +87,29 @@ function loadWaitlistRealTime() {
     .catch(error => console.error("❌ Error loading waitlist:", error));
 }
 
-let countdownIntervals = {}; // Store active countdowns
+let countdownIntervals = {}; // Track active countdowns
 
 function startCountdown(patientID, initialTime) {
     let countdownElement = document.getElementById(`countdown-${patientID}`);
     if (!countdownElement) return;
 
-    // Clear existing countdown if it's already running
+    // ✅ Clear any existing interval for this patient
     if (countdownIntervals[patientID]) {
         clearInterval(countdownIntervals[patientID]);
     }
 
-    let timeLeft = initialTime * 60; // Convert minutes to seconds
+    let timeLeft = Math.floor(initialTime) * 60; // Convert minutes to seconds
+
     countdownIntervals[patientID] = setInterval(() => {
         if (timeLeft <= 0) {
             countdownElement.innerHTML = "Please See Doctor";
             clearInterval(countdownIntervals[patientID]);
-            delete countdownIntervals[patientID]; // Remove from tracking
+            delete countdownIntervals[patientID];
         } else {
             let minutes = Math.floor(timeLeft / 60);
             countdownElement.innerHTML = `${minutes} min`;
-            timeLeft--;
         }
+        timeLeft--;
     }, 1000);
 }
 
@@ -132,6 +121,9 @@ setInterval(loadWaitlistRealTime, 30000);
 document.addEventListener("DOMContentLoaded", () => {
     loadWaitlistRealTime();
 });
+
+console.log(`⏳ [Countdown Started] ${patientID}: timeLeft=${initialTime} min`);
+
 
 // // ✅ Load waitlist when the page loads
 // document.addEventListener("DOMContentLoaded", loadWaitlistRealTime);
