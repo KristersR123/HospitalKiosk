@@ -383,7 +383,6 @@ app.post("/discharge-patient", async (req, res) => {
 
 
 
-// ✅ Function to Assign a Condition and Queue Number
 app.post("/assign-severity", async (req, res) => {
     try {
         const { patientID, severity } = req.body;
@@ -392,18 +391,18 @@ app.post("/assign-severity", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
-        // 🔹 Ensure severity has a proper wait time
+        // ✅ Define base wait times per severity
         const severityWaitTimes = {
             "Red": 0,
-            "Orange": 10,  // 🔥 Should be at least 10, NOT 6!
+            "Orange": 10,
             "Yellow": 60,
             "Green": 120,
             "Blue": 240
         };
 
-        const baseWaitTime = severityWaitTimes[severity] || 60; // ✅ Default 60 mins
+        const baseWaitTime = severityWaitTimes[severity] || 60;
 
-        // ✅ Find the correct Firebase key for the patient
+        // ✅ Find the correct patient in Firebase
         const patientsRef = db.ref("patients");
         const snapshot = await patientsRef.once("value");
 
@@ -415,20 +414,42 @@ app.post("/assign-severity", async (req, res) => {
         });
 
         if (!foundPatientKey) {
-            console.log(`❌ Patient ${patientID} not found in Firebase.`);
             return res.status(404).json({ error: "Patient not found" });
         }
 
-        // ✅ Correctly Assign Wait Time
-        await db.ref(`patients/${foundPatientKey}`).update({
-            severity,
-            estimatedWaitTime: baseWaitTime, // ✅ Should be 10 minutes for Orange
-            status: `Queueing for ${severity}`,
-            triageTime: new Date().toISOString()
+        // ✅ Find last patient in queue for same condition & severity
+        const condition = snapshot.child(foundPatientKey).val().condition;
+        let lastWaitTime = 0;
+        let lastPatientTime = 0;
+
+        snapshot.forEach(childSnapshot => {
+            const patient = childSnapshot.val();
+            if (patient.condition === condition && patient.severity === severity) {
+                if (patient.estimatedWaitTime > lastWaitTime) {
+                    lastWaitTime = patient.estimatedWaitTime; // Highest existing wait time
+                    lastPatientTime = new Date(patient.triageTime).getTime(); // Last patient's triage time
+                }
+            }
         });
 
-        console.log(`✅ Severity assigned for patient ${patientID}.`);
-        res.json({ success: true, message: `Severity assigned for patient ${patientID}.` });
+        // ✅ Check elapsed time since last patient
+        const now = new Date().getTime();
+        const elapsedSinceLastPatient = (now - lastPatientTime) / 60000; // in minutes
+
+        // ✅ Assign new wait time (adjusted for elapsed time)
+        const estimatedWaitTime = Math.max(lastWaitTime + baseWaitTime - elapsedSinceLastPatient, baseWaitTime);
+        const triageTime = new Date().toISOString();
+
+        // ✅ Update patient record
+        await db.ref(`patients/${foundPatientKey}`).update({
+            severity,
+            estimatedWaitTime: Math.ceil(estimatedWaitTime), // Round up to avoid decimals
+            status: `Queueing for ${severity}`,
+            triageTime
+        });
+
+        console.log(`✅ Severity assigned for patient ${patientID} with wait time ${estimatedWaitTime} min.`);
+        res.json({ success: true, estimatedWaitTime });
 
     } catch (error) {
         console.error("❌ Error assigning severity:", error);
@@ -449,10 +470,8 @@ app.post("/assign-condition", async (req, res) => {
         const snapshot = await patientsRef.once("value");
 
         let foundPatientKey = null;
-
         snapshot.forEach(childSnapshot => {
-            const patient = childSnapshot.val();
-            if (patient.patientID === patientID) { 
+            if (childSnapshot.val().patientID === patientID) { 
                 foundPatientKey = childSnapshot.key;
             }
         });
@@ -461,7 +480,7 @@ app.post("/assign-condition", async (req, res) => {
             return res.status(404).json({ error: "Patient not found" });
         }
 
-        // ✅ Ensure queue number is generated correctly
+        // ✅ Find last queue number for this condition
         const queueRef = db.ref(`queueNumbers/${condition}`);
         const queueSnapshot = await queueRef.once("value");
         const queueNumber = queueSnapshot.exists() ? queueSnapshot.val() + 1 : 1;
