@@ -56,7 +56,7 @@ async function monitorQueue() {
 
         snapshot.forEach(childSnapshot => {
             const patient = childSnapshot.val();
-            const patientID = childSnapshot.key;  // ✅ Define `patientID` here
+            const patientID = childSnapshot.key;  
 
             if (patient.status.startsWith("Queueing for") && patient.triageTime) {
                 const triageTime = new Date(patient.triageTime).getTime();
@@ -69,8 +69,8 @@ async function monitorQueue() {
                 const elapsedTime = Math.floor((now - triageTime) / 60000); // Convert to minutes
                 if (elapsedTime < 0) return;
 
-                let baseWaitTime = severityWaitTimes[patient.severity] || 60;
-                let remainingTime = Math.max(baseWaitTime - elapsedTime, 0);
+                // 🔹 Instead of recalculating from base severity, decrement only from assigned estimatedWaitTime
+                let remainingTime = Math.max(patient.estimatedWaitTime - 1, 0);
 
                 console.log(`⏳ [Monitor Queue] Patient: ${patientID} | Elapsed: ${elapsedTime} min | Remaining: ${remainingTime} min`);
 
