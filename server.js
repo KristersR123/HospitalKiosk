@@ -78,7 +78,10 @@ async function monitorQueue() {
                 console.log(`➡ Updating ${patientID}: elapsedTime=${elapsedTime}, remainingTime=${remainingTime}`);
 
                 // ✅ Update estimated wait time in Firebase
-                updates[`${patientID}/estimatedWaitTime`] = remainingTime;
+                // updates[`${patientID}/estimatedWaitTime`] = remainingTime;
+                if (remainingTime !== patient.estimatedWaitTime) { // Prevent unnecessary writes
+                    updates[`${patientID}/estimatedWaitTime`] = remainingTime;
+                }
 
                 // ✅ Only change status when time reaches 0
                 if (remainingTime <= 0 && patient.status.startsWith("Queueing for")) {
@@ -93,6 +96,18 @@ async function monitorQueue() {
         console.error("❌ Error monitoring queue:", error);
     }
 }
+
+function debounce(func, delay) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => func.apply(this, args), delay);
+    };
+}
+
+patientsRef.on("child_changed", debounce(snapshot => {
+    console.log("✅ Patient updated:", snapshot.val());
+}, 1000)); // Ensure only 1 update per second
 
 
 // ✅ Function to Adjust Queue Wait Times on Discharge
