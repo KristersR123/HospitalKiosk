@@ -433,8 +433,11 @@ app.post("/assign-severity", async (req, res) => {
             }
         });
 
-        // ✅ New patient's estimated wait time = last wait time + base wait time
-        const estimatedWaitTime = lastWaitTime > 0 ? lastWaitTime + baseWaitTime : baseWaitTime;
+        // ✅ Only update the estimated wait time for the specific patient being assigned severity
+        await db.ref(`patients/${foundPatientKey}`).update({severity,estimatedWaitTime: lastWaitTime + baseWaitTime,  // Only increment for the newly assigned patient
+                status: `Queueing for ${severity}`,
+                triageTime: new Date().toISOString()
+            });
 
         // ✅ Update patient record
         await db.ref(`patients/${foundPatientKey}`).update({
