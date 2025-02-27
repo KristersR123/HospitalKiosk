@@ -64,17 +64,20 @@ function loadWaitlistRealTime() {
 
                 let now = new Date().getTime();
                 let triageTime = new Date(patient.triageTime).getTime();
+                if (isNaN(triageTime)) {
+                    console.warn("⚠ Warning: Invalid triageTime for patient", patient);
+                    triageTime = now; // Default to current time if invalid
+                }
                 let elapsedTime = (now - triageTime) / 60000;
+                if (isNaN(elapsedTime)) elapsedTime = 0; // Ensure it is a valid number
                 
-                let baseWaitTime = severityWaitTimes[patient.severity] || 60; // Get base time for severity
+                let baseWaitTime = severityWaitTimes[patient.severity] || 60;
                 let estimatedWaitTime = (patient.estimatedWaitTime !== undefined) ? patient.estimatedWaitTime : baseWaitTime;
                 let remainingWaitTime = Math.max(estimatedWaitTime - elapsedTime, 0);
 
-                console.log("🟢 Patient Data:", patient);
-                console.log("➡ Severity:", patient.severity);
-                console.log("➡ Base Wait Time:", baseWaitTime);
-                console.log("➡ Estimated Wait Time from Backend:", patient.estimatedWaitTime);
-                console.log("➡ Calculated Remaining Wait Time:", remainingWaitTime);
+                console.log("➡ Triage Time:", triageTime);
+                console.log("➡ Elapsed Time:", elapsedTime);
+                console.log("➡ Remaining Wait Time:", remainingWaitTime);
 
 
                 listItem.innerHTML = `
