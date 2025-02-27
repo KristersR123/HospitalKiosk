@@ -9,15 +9,11 @@ const severityWaitTimes = {
     "Blue": 240
 };
 
-// ✅ Function to Load & Auto-Update Waitlist in Real-Time
 function loadWaitlistRealTime() {
     fetch(`${RENDER_API_URL}/waitlist`)
     .then(response => response.json())
     .then(patients => {
-        
-        console.log("📌 Waitlist Data:", patients); // Debugging output
-
-        waitlistContainer.innerHTML = ""; // Clear the container
+        waitlistContainer.innerHTML = "";
 
         if (!patients || patients.length === 0) {
             waitlistContainer.innerHTML = "<p>No patients in the waitlist.</p>";
@@ -27,13 +23,6 @@ function loadWaitlistRealTime() {
         let conditionGroups = {};
 
         patients.forEach(patient => {
-            console.log("✅ Checking patient entry:", patient);
-
-            if (!patient || !patient.status) { 
-                console.warn("⚠ Skipping invalid patient entry:", patient);
-                return;
-            }
-
             let key = `${patient.condition}-${patient.severity}`;
             if (!conditionGroups[key]) {
                 conditionGroups[key] = [];
@@ -56,6 +45,8 @@ function loadWaitlistRealTime() {
             let queueList = document.createElement("ul");
             queueList.classList.add("patient-list");
 
+            let accumulatedWaitTime = 0; // Track total queue wait time
+
             sortedQueue.forEach((patient, index) => {
                 let queuePosition = index + 1;
                 let listItem = document.createElement("li");
@@ -64,33 +55,25 @@ function loadWaitlistRealTime() {
 
                 let now = new Date().getTime();
                 let triageTime = new Date(patient.triageTime).getTime();
-                if (isNaN(triageTime)) {
-                    console.warn("⚠ Warning: Invalid triageTime for patient", patient);
-                    triageTime = now; // Default to current time if invalid
-                }
                 let elapsedTime = (now - triageTime) / 60000;
-                if (isNaN(elapsedTime)) elapsedTime = 0; // Ensure it is a valid number
-                
+
                 let baseWaitTime = severityWaitTimes[patient.severity] || 60;
-                let estimatedWaitTime = (patient.estimatedWaitTime !== undefined) ? patient.estimatedWaitTime : baseWaitTime;
-                let remainingWaitTime = Math.max(estimatedWaitTime - elapsedTime, 0);
+                let remainingWaitTime = Math.max((patient.estimatedWaitTime || baseWaitTime) - elapsedTime, 0);
 
-                console.log("➡ Triage Time:", triageTime);
-                console.log("➡ Elapsed Time:", elapsedTime);
-                console.log("➡ Remaining Wait Time:", remainingWaitTime);
-
+                // Add to accumulated wait time for next patient
+                accumulatedWaitTime += remainingWaitTime;
 
                 listItem.innerHTML = `
                     <div class="queue-patient">
                         Queue Position: <span class="queue-pos">#${queuePosition}</span><br>
-                        Estimated Wait Time: <span id="countdown-${patient.patientID}" class="countdown">${Math.floor(remainingWaitTime)} min</span>
+                        Estimated Wait Time: <span id="countdown-${patient.patientID}" class="countdown">${Math.floor(accumulatedWaitTime)} min</span>
                     </div>
                 `;
 
                 queueList.appendChild(listItem);
 
                 // Start live countdown
-                startCountdown(patient.patientID, remainingWaitTime);
+                startCountdown(patient.patientID, accumulatedWaitTime);
             });
 
             conditionSection.appendChild(queueList);
