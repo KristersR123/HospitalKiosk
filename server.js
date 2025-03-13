@@ -219,23 +219,27 @@ app.get("/doctor-queue", async (req, res) => {
     try {
         const snapshot = await db.ref("patients")
             .orderByChild("status")
-            .equalTo("Please See Doctor")
             .once("value");
 
         if (!snapshot.exists()) {
-            console.log("⚠ No patients are ready for a doctor.");
-            return res.json([]); // ✅ Return an empty array instead of an error
+            console.log("⚠ No patients are currently being seen.");
+            return res.json([]);
         }
 
         const doctorQueue = [];
         snapshot.forEach(childSnapshot => {
-            doctorQueue.push({
-                id: childSnapshot.key,
-                ...childSnapshot.val()
-            });
+            const patient = childSnapshot.val();
+
+            // ✅ Include both "Please See Doctor" and "With Doctor"
+            if (patient.status === "Please See Doctor" || patient.status === "With Doctor") {
+                doctorQueue.push({
+                    id: childSnapshot.key,
+                    ...patient
+                });
+            }
         });
 
-        // ✅ Return all patients ready to be seen, not just one
+        console.log("✅ Doctor queue updated:", doctorQueue);
         res.json(doctorQueue);
     } catch (error) {
         console.error("❌ Error fetching doctor queue:", error);
@@ -243,6 +247,35 @@ app.get("/doctor-queue", async (req, res) => {
     }
 });
 
+app.get("/hospital-wait-time", async (req, res) => {
+    try {
+      const snapshot = await db.ref("patients").once("value");
+      if (!snapshot.exists()) {
+        return res.json({ totalWait: 0, patientCount: 0 });
+      }
+  
+      let totalWaitTime = 0;
+      let count = 0;
+  
+      snapshot.forEach(childSnapshot => {
+        const patient = childSnapshot.val();
+        // Consider patients with a status like "Queueing for Orange/Red/Green/etc."
+        // If you have multiple conditions, ensure you only sum those who are actively in the queue.
+        if (patient.status && patient.status.startsWith("Queueing for")) {
+          totalWaitTime += patient.estimatedWaitTime || 0;
+          count++;
+        }
+      });
+  
+      return res.json({
+        totalWait: totalWaitTime,  // Sum of all queueing times
+        patientCount: count
+      });
+    } catch (error) {
+      console.error("❌ Error fetching hospital wait time:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+});
 
 
 app.get("/patients-awaiting-triage", async (req, res) => {
@@ -567,35 +600,3 @@ app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
 
 });
-
-
-
-// app.get("/hospital-wait-time", async (req, res) => {
-//     try {
-//       const snapshot = await db.ref("patients").once("value");
-//       if (!snapshot.exists()) {
-//         return res.json({ totalWait: 0, patientCount: 0 });
-//       }
-  
-//       let totalWaitTime = 0;
-//       let count = 0;
-  
-//       snapshot.forEach(childSnapshot => {
-//         const patient = childSnapshot.val();
-//         // Consider patients with a status like "Queueing for Orange/Red/Green/etc."
-//         // If you have multiple conditions, ensure you only sum those who are actively in the queue.
-//         if (patient.status && patient.status.startsWith("Queueing for")) {
-//           totalWaitTime += patient.estimatedWaitTime || 0;
-//           count++;
-//         }
-//       });
-  
-//       return res.json({
-//         totalWait: totalWaitTime,  // Sum of all queueing times
-//         patientCount: count
-//       });
-//     } catch (error) {
-//       console.error("❌ Error fetching hospital wait time:", error);
-//       res.status(500).json({ error: "Internal Server Error" });
-//     }
-//   });

@@ -1,6 +1,7 @@
 const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
 const doctorDashboard = document.getElementById("doctor-dashboard");
 
+let doctorTimers = {}; // Track active timers
 
 function loadDoctorQueue() {
     fetch(`${RENDER_API_URL}/doctor-queue`)
@@ -25,7 +26,6 @@ function loadDoctorQueue() {
 
                 patientCard.innerHTML = `
                     <h2>Patient #${patient.queueNumber}</h2>
-                    <p>Condition: <b>${patient.condition}</b></p>
                     <p>Severity: <span class="${patient.severity.toLowerCase()}">${patient.severity}</span></p>
                     <p>Status: <span id="status-${patient.id}">${statusText}</span></p>
                     ${timerDisplay}
@@ -69,24 +69,25 @@ function acceptPatient(patientID) {
     .catch(error => console.error("❌ Error accepting patient:", error));
 }
 
-let doctorTimers = {}; // Track active timers
+
 
 function startDoctorTimer(patientID, acceptedTime) {
+    // ✅ Convert acceptedTime to a Date object
     let startTime = new Date(acceptedTime).getTime();
-    
+
     if (doctorTimers[patientID]) {
-        clearInterval(doctorTimers[patientID]); // Clear existing timer if running
+        clearInterval(doctorTimers[patientID]); // Stop previous timer if any
     }
 
     doctorTimers[patientID] = setInterval(() => {
         let now = new Date().getTime();
         let elapsedMinutes = Math.floor((now - startTime) / 60000); // Convert to minutes
-
         let timerElement = document.getElementById(`timer-${patientID}`);
+
         if (timerElement) {
-            timerElement.innerText = `${elapsedMinutes} min`;
+            timerElement.innerHTML = `${elapsedMinutes} min`;
         }
-    }, 60000); // ✅ Update every 1 minute
+    }, 60000); // ✅ Updates every 1 minute
 }
 
 // Function to Discharge a Patient
