@@ -53,18 +53,26 @@ function acceptPatient(patientID) {
         body: JSON.stringify({ patientID })
     })
     .then(response => response.json())
-    .then(() => {
+    .then(data => {
         alert(`✅ Patient ${patientID} has been accepted by the doctor.`);
         
-        document.getElementById(`status-${patientID}`).innerText = "Being Seen";
-        document.querySelector(`#doctor-patient-${patientID} .accept-button`).style.display = "none";
-        document.querySelector(`#doctor-patient-${patientID} .discharge-button`).style.display = "inline-block";
-
-        // ✅ Start tracking time with doctor
-        let acceptedTime = new Date().toISOString();
-        startDoctorTimer(patientID, acceptedTime);
-
-        loadDoctorQueue();
+        // Update the UI only if the elements exist
+        const statusElement = document.getElementById(`status-${patientID}`);
+        const acceptButton = document.querySelector(`#doctor-patient-${patientID} .accept-button`);
+        const dischargeButton = document.querySelector(`#doctor-patient-${patientID} .discharge-button`);
+        
+        if (statusElement) {
+            statusElement.innerText = "Being Seen";
+        }
+        if (acceptButton) {
+            acceptButton.style.display = "none";
+        }
+        if (dischargeButton) {
+            dischargeButton.style.display = "inline-block";
+        }
+        
+        // Optionally, delay the refresh of the queue to let UI update complete
+        setTimeout(() => loadDoctorQueue(), 1000);
     })
     .catch(error => console.error("❌ Error accepting patient:", error));
 }
