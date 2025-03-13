@@ -509,6 +509,37 @@ app.post("/assign-severity", async (req, res) => {
 });
 
 
+app.get("/hospital-wait-time", async (req, res) => {
+    try {
+      const snapshot = await db.ref("patients").once("value");
+      if (!snapshot.exists()) {
+        return res.json({ totalWait: 0, patientCount: 0 });
+      }
+  
+      let totalWaitTime = 0;
+      let count = 0;
+  
+      snapshot.forEach(childSnapshot => {
+        const patient = childSnapshot.val();
+        // Consider patients with a status like "Queueing for Orange/Red/Green/etc."
+        // If you have multiple conditions, ensure you only sum those who are actively in the queue.
+        if (patient.status && patient.status.startsWith("Queueing for")) {
+          totalWaitTime += patient.estimatedWaitTime || 0;
+          count++;
+        }
+      });
+  
+      return res.json({
+        totalWait: totalWaitTime,  // Sum of all queueing times
+        patientCount: count
+      });
+    } catch (error) {
+      console.error("❌ Error fetching hospital wait time:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+
 
 app.post("/assign-condition", async (req, res) => {
     try {
@@ -567,42 +598,3 @@ app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
 
 });
-
-
-
-
-
-/**
- * Returns a summary of the hospital queue:
- * - totalWait: The sum of all estimatedWaitTime values for patients actively queueing
- * - patientCount: Number of patients currently queueing
- */
-app.get("/hospital-wait-time", async (req, res) => {
-    try {
-      const snapshot = await db.ref("patients").once("value");
-      if (!snapshot.exists()) {
-        return res.json({ totalWait: 0, patientCount: 0 });
-      }
-  
-      let totalWaitTime = 0;
-      let count = 0;
-  
-      snapshot.forEach(childSnapshot => {
-        const patient = childSnapshot.val();
-        // Consider patients with a status like "Queueing for Orange/Red/Green/etc."
-        // If you have multiple conditions, ensure you only sum those who are actively in the queue.
-        if (patient.status && patient.status.startsWith("Queueing for")) {
-          totalWaitTime += patient.estimatedWaitTime || 0;
-          count++;
-        }
-      });
-  
-      return res.json({
-        totalWait: totalWaitTime,  // Sum of all queueing times
-        patientCount: count
-      });
-    } catch (error) {
-      console.error("❌ Error fetching hospital wait time:", error);
-      res.status(500).json({ error: "Internal Server Error" });
-    }
-  });
