@@ -11,140 +11,155 @@ const severityWaitTimes = {
 
 // ✅ Function to Load & Auto-Update Waitlist in Real-Time
 function loadWaitlistRealTime() {
-  fetch(`${RENDER_API_URL}/waitlist`)
-    .then((response) => response.json())
-    .then((patients) => {
-      console.log("📌 Waitlist Data:", patients);
-      waitlistContainer.innerHTML = "";
+    fetch(`${RENDER_API_URL}/waitlist`)
+        .then(response => response.json())
+        .then(patients => {
+            console.log("📌 Waitlist Data:", patients);
 
-      if (!patients || patients.length === 0) {
-        waitlistContainer.innerHTML = "<p>No patients in the waitlist.</p>";
-        return;
-      }
+            waitlistContainer.innerHTML = "";
 
-      // Group by condition-severity
-      let conditionGroups = {};
-      // Clear old countdowns
-      Object.keys(countdownIntervals).forEach((pid) => {
-        clearInterval(countdownIntervals[pid]);
-        delete countdownIntervals[pid];
-      });
+            if (!patients || patients.length === 0) {
+                waitlistContainer.innerHTML = "<p>No patients in the waitlist.</p>";
+                return;
+            }
 
-      // Filter out patients who are "With Doctor"
-      patients.forEach((p) => {
-        if (!p || !p.status) return;
-        if (p.status === "With Doctor") {
-          // skip them
-          return;
-        }
-        let groupKey = `${p.condition}-${p.severity}`;
-        if (!conditionGroups[groupKey]) {
-          conditionGroups[groupKey] = [];
-        }
-        conditionGroups[groupKey].push(p);
-      });
+            let conditionGroups = {};
 
-      Object.keys(conditionGroups).forEach((groupKey) => {
-        const [condition, severity] = groupKey.split("-");
-        const sortedQueue = conditionGroups[groupKey].sort(
-          (a, b) => a.queueNumber - b.queueNumber
-        );
+            // ✅ Clear countdown timers before reloading data
+            Object.keys(countdownIntervals).forEach(patientID => {
+                clearInterval(countdownIntervals[patientID]);
+                delete countdownIntervals[patientID];
+            });
 
-        const conditionSection = document.createElement("div");
-        conditionSection.classList.add("condition-section");
-        conditionSection.setAttribute("data-condition", groupKey);
+            let firstPatientInQueue = null;
 
-        conditionSection.innerHTML = `
-          <div class="condition-title">
-            ${condition} - <span class="${severity.toLowerCase()}">${severity} Severity</span>
-          </div>
-        `;
+            patients.forEach(patient => {
+                if (!patient || !patient.status) {
+                    console.warn("⚠ Skipping invalid patient entry:", patient);
+                    return;
+                }
 
-        const queueList = document.createElement("ul");
-        queueList.classList.add("patient-list");
+                // ✅ Exclude patients already "With Doctor" from the waitlist UI
+                if (patient.status === "With Doctor") {
+                    console.log(`⏳ Skipping patient ${patient.patientID}, already with doctor.`);
+                    return;
+                }
 
-        sortedQueue.forEach((patient, idx) => {
-          const queuePos = idx + 1;
-          const li = document.createElement("li");
-          li.classList.add("patient-item");
-          li.id = `queue-${patient.patientID}`;
+                let key = `${patient.condition}-${patient.severity}`;
+                if (!conditionGroups[key]) {
+                    conditionGroups[key] = [];
+                }
+                conditionGroups[key].push(patient);
 
-          const waitTime =
-            patient.estimatedWaitTime !== undefined
-              ? patient.estimatedWaitTime
-              : severityWaitTimes[patient.severity] || 60;
+                // ✅ Track the first patient who needs to see a doctor
+                if (patient.status === "Please See Doctor" && (!firstPatientInQueue || patient.queueNumber < firstPatientInQueue.queueNumber)) {
+                    firstPatientInQueue = patient;
+                }
+            });
 
-          li.innerHTML = `
-            <div class="queue-patient">
-              Queue Position: <span class="queue-pos">#${queuePos}</span><br>
-              Estimated Wait Time:
-              <span id="countdown-${patient.patientID}" class="countdown">
-                ${Math.floor(waitTime)} min
-              </span>
-            </div>
-          `;
+            Object.keys(conditionGroups).forEach(groupKey => {
+                let [condition, severity] = groupKey.split("-");
+                let sortedQueue = conditionGroups[groupKey].sort((a, b) => a.queueNumber - b.queueNumber);
 
-          queueList.appendChild(li);
-          startCountdown(patient.patientID, waitTime, groupKey, queuePos);
-        });
+                let conditionSection = document.createElement("div");
+                conditionSection.classList.add("condition-section");
+                conditionSection.setAttribute("data-condition", groupKey);
+                conditionSection.innerHTML = `
+                    <div class="condition-title">${condition} - 
+                        <span class="${severity.toLowerCase()}">${severity} Severity</span>
+                    </div>
+                `;
 
-        conditionSection.appendChild(queueList);
-        waitlistContainer.appendChild(conditionSection);
-      });
-    })
-    .catch((err) => console.error("❌ Error loading waitlist:", err));
+                let queueList = document.createElement("ul");
+                queueList.classList.add("patient-list");
+
+                sortedQueue.forEach((patient, index) => {
+                    let queuePosition = index + 1;
+                    let listItem = document.createElement("li");
+                    listItem.classList.add("patient-item");
+                    listItem.id = `queue-${patient.patientID}`;
+
+                    let remainingWaitTime = patient.estimatedWaitTime !== undefined 
+                        ? patient.estimatedWaitTime 
+                        : severityWaitTimes[patient.severity] || 60;
+
+                    listItem.innerHTML = `
+                        <div class="queue-patient">
+                            Queue Position: <span class="queue-pos">#${queuePosition}</span><br>
+                            Estimated Wait Time: <span id="countdown-${patient.patientID}" class="countdown">${Math.floor(remainingWaitTime)} min</span>
+                        </div>
+                    `;
+
+                    queueList.appendChild(listItem);
+                    startCountdown(patient.patientID, remainingWaitTime, groupKey, queuePosition);
+                });
+
+                conditionSection.appendChild(queueList);
+                waitlistContainer.appendChild(conditionSection);
+            });
+
+            // ✅ Update "Doctor is Ready" message
+            if (firstPatientInQueue) {
+                updateDoctorReadyMessage(`${firstPatientInQueue.condition}-${firstPatientInQueue.severity}`, firstPatientInQueue.queueNumber);
+            }
+        })
+        .catch(error => console.error("❌ Error loading waitlist:", error));
 }
 
 let countdownIntervals = {}; // Track active countdowns
 
 function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
-  const countdownElement = document.getElementById(`countdown-${patientID}`);
-  if (!countdownElement) return;
+    let countdownElement = document.getElementById(`countdown-${patientID}`);
+    if (!countdownElement) return;
 
-  let timeLeft = Math.floor(initialTime) * 60; // seconds
+    console.log(`⏳ [Countdown Started] ${patientID}: timeLeft=${initialTime} min`);
 
-  if (countdownIntervals[patientID]) {
-    clearInterval(countdownIntervals[patientID]);
-  }
-
-  countdownIntervals[patientID] = setInterval(() => {
-    if (timeLeft <= 0) {
-      clearInterval(countdownIntervals[patientID]);
-      delete countdownIntervals[patientID];
-      countdownElement.textContent = "0 min"; 
-      // DO NOT PROMOTE HERE. Let the discharge logic handle it.
-    } else {
-      const minutes = Math.floor(timeLeft / 60);
-      countdownElement.textContent = `${minutes} min`;
+    if (countdownIntervals[patientID]) {
+        clearInterval(countdownIntervals[patientID]);
     }
-    timeLeft--;
-  }, 1000);
+
+    let timeLeft = Math.floor(initialTime) * 60; // Convert minutes to seconds
+
+    countdownIntervals[patientID] = setInterval(() => {
+        if (timeLeft <= 0) {
+            countdownElement.innerHTML = "Please See Doctor";
+            clearInterval(countdownIntervals[patientID]);
+            delete countdownIntervals[patientID];
+
+            // ✅ **NEW: Ensure the "Doctor Ready" message appears**
+            updateDoctorReadyMessage(conditionKey, queueNumber);
+        } else {
+            let minutes = Math.floor(timeLeft / 60);
+            countdownElement.innerHTML = `${minutes} min`;
+        }
+        timeLeft--;
+    }, 1000);
 }
 
 
 // ✅ Ensure the Doctor Ready Message Appears
-// function updateDoctorReadyMessage(conditionKey, queueNumber) {
-//     let conditionSection = document.querySelector(`[data-condition="${conditionKey}"]`);
-//     if (!conditionSection) {
-//         console.warn(`⚠ Condition section not found for ${conditionKey}`);
-//         return;
-//     }
+function updateDoctorReadyMessage(conditionKey, queueNumber) {
+    let conditionSection = document.querySelector(`[data-condition="${conditionKey}"]`);
+    if (!conditionSection) {
+        console.warn(`⚠ Condition section not found for ${conditionKey}`);
+        return;
+    }
 
-//     let doctorReadyDiv = conditionSection.querySelector(".doctor-ready");
-//     if (!doctorReadyDiv) {
-//         doctorReadyDiv = document.createElement("div");
-//         doctorReadyDiv.classList.add("doctor-ready");
-//         doctorReadyDiv.style.fontWeight = "bold";
-//         doctorReadyDiv.style.color = "#28a745"; // Green text
-//         doctorReadyDiv.style.marginTop = "10px";
-//         doctorReadyDiv.style.fontSize = "18px";
-//         doctorReadyDiv.style.padding = "10px";
-//         conditionSection.appendChild(doctorReadyDiv);
-//     }
+    let doctorReadyDiv = conditionSection.querySelector(".doctor-ready");
+    if (!doctorReadyDiv) {
+        doctorReadyDiv = document.createElement("div");
+        doctorReadyDiv.classList.add("doctor-ready");
+        doctorReadyDiv.style.fontWeight = "bold";
+        doctorReadyDiv.style.color = "#28a745"; // Green text
+        doctorReadyDiv.style.marginTop = "10px";
+        doctorReadyDiv.style.fontSize = "18px";
+        doctorReadyDiv.style.padding = "10px";
+        conditionSection.appendChild(doctorReadyDiv);
+    }
 
-//     // ✅ Show the "Doctor is Ready" message
-//     doctorReadyDiv.innerHTML = `🩺 Patient #${queueNumber} - Doctor is Ready for You`;
-// }
+    // ✅ Show the "Doctor is Ready" message
+    doctorReadyDiv.innerHTML = `🩺 Patient #${queueNumber} - Doctor is Ready for You`;
+}
 
 // ✅ Auto-refresh every 30 seconds
 setInterval(loadWaitlistRealTime, 30000);
