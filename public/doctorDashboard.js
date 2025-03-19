@@ -9,21 +9,17 @@ function loadDoctorQueue() {
         .then(patients => {
             console.log("📌 Doctor queue:", patients);
             doctorDashboard.innerHTML = "";
-
             if (!Array.isArray(patients) || patients.length === 0) {
                 doctorDashboard.innerHTML = "<p>No patients currently being seen.</p>";
                 return;
             }
-
             patients.forEach(patient => {
                 let patientCard = document.createElement("div");
                 patientCard.classList.add("patient-card");
                 patientCard.id = `doctor-patient-${patient.id}`;
-
                 let statusText = patient.status === "With Doctor" ? "Being Seen" : "Waiting for Doctor";
                 let timerDisplay = patient.status === "With Doctor" ?
                     `<p>Time With Doctor: <span id="timer-${patient.id}">0 min</span></p>` : "";
-
                 patientCard.innerHTML = `
                     <h2>Patient #${patient.queueNumber}</h2>
                     <p>Severity: <span class="${patient.severity.toLowerCase()}">${patient.severity}</span></p>
@@ -32,9 +28,7 @@ function loadDoctorQueue() {
                     ${patient.status === "Please See Doctor" ? `<button class="accept-button" onclick="acceptPatient('${patient.id}')">Accept</button>` : ""}
                     ${patient.status === "With Doctor" ? `<button class="discharge-button" onclick="dischargePatient('${patient.id}')">Discharge</button>` : ""}
                 `;
-
                 doctorDashboard.appendChild(patientCard);
-
                 if (patient.status === "With Doctor") {
                     startDoctorTimer(patient.id, patient.acceptedTime);
                 }
@@ -42,6 +36,7 @@ function loadDoctorQueue() {
         })
         .catch(error => console.error("Error loading doctor queue:", error));
 }
+
 
 // Function to Accept a Patient
 function acceptPatient(patientID) {
@@ -53,7 +48,6 @@ function acceptPatient(patientID) {
     .then(response => response.json())
     .then(() => {
         alert(`Patient ${patientID} has been accepted by the doctor.`);
-        // Check that elements exist before updating
         const statusElem = document.getElementById(`status-${patientID}`);
         const acceptBtn = document.querySelector(`#doctor-patient-${patientID} .accept-button`);
         const dischargeBtn = document.querySelector(`#doctor-patient-${patientID} .discharge-button`);
@@ -83,7 +77,7 @@ function startDoctorTimer(patientID, acceptedTime) {
         if (timerElement) {
             timerElement.innerHTML = `${minutes} min ${seconds}s`;
         }
-    }, 1000); // update every second
+    }, 1000);
 }
 
 // Function to Discharge a Patient
