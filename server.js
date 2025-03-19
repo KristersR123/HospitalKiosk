@@ -43,7 +43,10 @@ const severityWaitTimes = {
 };
 
 
-// ✅ Function to Monitor Queue and Update Status
+// ------------------------------------------------------------
+// 2) MONITOR QUEUE: A function that runs every minute or so
+//    to decrement each "Queueing for X" patient's estimatedWaitTime by 1
+//    until it hits 0 => then set "Please See Doctor"
 async function monitorQueue() {
     try {
       const snapshot = await patientsRef.once("value");
@@ -52,36 +55,40 @@ async function monitorQueue() {
       const now = Date.now();
       const updates = {};
   
-      snapshot.forEach(childSnapshot => {
-        const patient = childSnapshot.val();
-        const patientID = childSnapshot.key;
+      snapshot.forEach(childSnap => {
+        const patient = childSnap.val();
+        const patientID = childSnap.key;
   
-        if (patient.status.startsWith("Queueing for") && patient.triageTime) {
-          const triageTime = new Date(patient.triageTime).getTime();
-          if (isNaN(triageTime)) {
-            console.warn(`⚠ Warning: Invalid triageTime for patient ${patientID}`, patient.triageTime);
-            return;
-          }
-          const elapsedTime = Math.floor((now - triageTime) / 60000); // minutes elapsed
-          if (elapsedTime < 0) return;
+        // Only if status starts with "Queueing for"
+        if (patient.status && patient.status.startsWith("Queueing for") && patient.triageTime) {
+          let triageTimeMs = Date.parse(patient.triageTime);
+          if (isNaN(triageTimeMs)) return; // skip invalid triageTime
   
-          // Decrement only from the assigned estimatedWaitTime.
-          let newTime = Math.max(patient.estimatedWaitTime - 1, 0);
-  
-          if (newTime !== patient.estimatedWaitTime) {
-            updates[`${patientID}/estimatedWaitTime`] = newTime;
+          // Decrement by 1 minute, if not already 0
+          let currWait = patient.estimatedWaitTime || 0;
+          if (currWait > 0) {
+            // Decrement by 1
+            let newWait = Math.max(currWait - 1, 0);
+            if (newWait !== currWait) {
+              updates[`${patientID}/estimatedWaitTime`] = newWait;
+            }
+            // If newWait is 0 => promote them
+            if (newWait === 0) {
+              updates[`${patientID}/status`] = "Please See Doctor";
+            }
           }
         }
       });
   
       if (Object.keys(updates).length > 0) {
-        await db.ref("patients").update(updates);
-        console.log("✅ Queue updated successfully (monitorQueue).");
+        await patientsRef.update(updates);
+        console.log("✅ Queue monitor updated wait times:", updates);
       }
-    } catch (error) {
-      console.error("❌ Error monitoring queue:", error);
+    } catch (err) {
+      console.error("❌ Error in monitorQueue:", err);
     }
-  }
+}
+  
 
 async function checkFirebaseWaitTimes() {
     try {
@@ -402,79 +409,112 @@ app.post("/promote-patient", async (req, res) => {
 
 
 
-// ✅ Discharge Patient Endpoint with Real-Time Delta Adjustment
+// ------------------------------------------------------------
+// 3) DISCHARGE LOGIC: After the doc is done with the first patient, we
+//    check how long they actually spent. Then we adjust the next patients
+//    in line for the same condition+severity. If doc time < base => we reduce
+//    next patients. If doc time > base => we add the difference. 
 app.post("/discharge-patient", async (req, res) => {
     try {
       const { patientID } = req.body;
       if (!patientID) {
         return res.status(400).json({ error: "Missing patient ID" });
       }
+  
       const patientRef = db.ref(`patients/${patientID}`);
-      const snapshot = await patientRef.once("value");
-      if (!snapshot.exists()) {
+      const snap = await patientRef.once("value");
+      if (!snap.exists()) {
         return res.status(404).json({ error: "Patient not found" });
       }
-      const patient = snapshot.val();
+  
+      const patient = snap.val();
       if (!patient.acceptedTime) {
-        return res.status(400).json({ error: "Patient has not been accepted yet" });
+        // If there's no 'acceptedTime', we can't measure doctor time
+        console.warn("⚠ Discharging a patient who never had acceptedTime:", patient);
       }
-      const acceptedTime = new Date(patient.acceptedTime).getTime();
-      const now = Date.now();
-      const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000); // minutes
-      console.log(`✅ Patient ${patientID} spent ${elapsedDoctorTime} min with doctor.`);
-      
+  
+      let acceptedTimeMs = patient.acceptedTime ? Date.parse(patient.acceptedTime) : Date.now();
+      let now = Date.now();
+      let elapsedDoctorTime = Math.floor((now - acceptedTimeMs) / 60000); // in minutes
+  
+      console.log(`⏱ Discharging patient ${patientID} after ${elapsedDoctorTime} min with doctor.`);
+  
+      // Condition/Severity for this queue
       const condition = patient.condition;
       const severity = patient.severity;
-      const baseWait = severityWaitTimes[severity] || 60;
-      const delta = elapsedDoctorTime - baseWait;
-      console.log(`Delta for wait adjustment: ${delta} minute(s)`);
+      const baseWait = severityWaitTimes[severity] || 10; // fallback if severity missing
   
-      // Get all waiting patients for same condition & severity
-      const allPatientsSnap = await db.ref("patients").once("value");
-      let waitingPatients = [];
-      if (allPatientsSnap.exists()) {
-        allPatientsSnap.forEach(child => {
-          const p = child.val();
+      // We'll gather the updates
+      let updates = {};
+  
+      // Grab all "Queueing for <severity>" patients with same condition
+      let allSnap = await patientsRef.once("value");
+      if (allSnap.exists()) {
+        let queueingPatients = [];
+  
+        allSnap.forEach(cs => {
+          let pData = cs.val();
           if (
-            p.status &&
-            p.status.startsWith("Queueing for") &&
-            p.condition === condition &&
-            p.severity === severity
+            pData.status &&
+            pData.status.startsWith("Queueing for") &&
+            pData.condition === condition &&
+            pData.severity === severity
           ) {
-            waitingPatients.push({ key: child.key, data: p });
+            queueingPatients.push({ key: cs.key, data: pData });
           }
         });
-      }
-      // Sort waiting patients by queueNumber ascending
-      waitingPatients.sort((a, b) => a.data.queueNumber - b.data.queueNumber);
-      const updates = {};
-      if (waitingPatients.length > 0) {
-        // For the first waiting patient, adjust their wait time using delta:
-        let firstPatient = waitingPatients[0];
-        let currentWait = firstPatient.data.estimatedWaitTime || baseWait;
-        let newWait = Math.max(currentWait + delta, 0);
-        updates[`${firstPatient.key}/estimatedWaitTime`] = newWait;
-        // Only promote (set status) if new wait time is 0; that means the doctor is ready for that patient.
-        if (newWait === 0) {
-          updates[`${firstPatient.key}/status`] = "Please See Doctor";
+  
+        // Sort them by queueNumber ascending
+        queueingPatients.sort((a, b) => a.data.queueNumber - b.data.queueNumber);
+  
+        // If we have queueing patients, we adjust the first patient's wait time
+        // based on how short/long the doc was
+        if (queueingPatients.length > 0) {
+          let first = queueingPatients[0];
+          let firstNewWait = 0;
+  
+          if (elapsedDoctorTime < baseWait) {
+            // The doc was faster than the base time => reduce next patient's wait
+            let difference = baseWait - elapsedDoctorTime;
+            firstNewWait = Math.max(first.data.estimatedWaitTime - difference, 0);
+          } else if (elapsedDoctorTime > baseWait) {
+            // The doc took longer => the next patient has to wait more
+            let difference = elapsedDoctorTime - baseWait;
+            firstNewWait = first.data.estimatedWaitTime + difference;
+          } else {
+            // doc took exactly baseWait => keep the same time
+            firstNewWait = first.data.estimatedWaitTime;
+          }
+  
+          updates[`${first.key}/estimatedWaitTime`] = firstNewWait;
+  
+          // If that newWaitTime is 0 => we promote them to 'Please See Doctor'
+          if (firstNewWait === 0) {
+            updates[`${first.key}/status`] = "Please See Doctor";
+          }
+  
+          // For subsequent patients => add baseWait for each position
+          for (let i = 1; i < queueingPatients.length; i++) {
+            // For i-th patient, we do firstNewWait + (baseWait * i)
+            // or you can do some other chaining logic
+            let newTime = firstNewWait + (baseWait * i);
+            updates[`${queueingPatients[i].key}/estimatedWaitTime`] = newTime;
+          }
         }
-        // For subsequent patients, chain wait times by adding base wait time per position.
-        for (let i = 1; i < waitingPatients.length; i++) {
-          let chainedWait = Math.max(newWait + baseWait * i, 0);
-          updates[`${waitingPatients[i].key}/estimatedWaitTime`] = chainedWait;
-        }
-        console.log("✅ Updated wait times for waiting patients:", updates);
       }
-      // Remove discharged patient
+  
+      // Remove the discharged patient
       await patientRef.remove();
-      console.log(`✅ Patient ${patientID} removed from DB.`);
+  
+      // Apply the queued updates
       if (Object.keys(updates).length > 0) {
-        await db.ref("patients").update(updates);
-        console.log("✅ Queue times adjusted based on doctor delay.");
+        await patientsRef.update(updates);
+        console.log(`✅ Updated wait times for queue:`, updates);
       }
+  
       res.json({ success: true, message: `✅ Patient ${patientID} discharged & queue updated.` });
-    } catch (error) {
-      console.error("❌ Error in discharge-patient:", error);
+    } catch (err) {
+      console.error("❌ Error discharging patient:", err);
       res.status(500).json({ success: false, message: "Error discharging patient." });
     }
 });
