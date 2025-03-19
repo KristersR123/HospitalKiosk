@@ -99,9 +99,9 @@ function loadWaitlistRealTime() {
             });
 
             // ✅ Update "Doctor is Ready" message
-            if (firstPatientInQueue) {
-                updateDoctorReadyMessage(`${firstPatientInQueue.condition}-${firstPatientInQueue.severity}`, firstPatientInQueue.queueNumber);
-            }
+            // if (firstPatientInQueue) {
+            //     updateDoctorReadyMessage(`${firstPatientInQueue.condition}-${firstPatientInQueue.severity}`, firstPatientInQueue.queueNumber);
+            // }
         })
         .catch(error => console.error("❌ Error loading waitlist:", error));
 }
@@ -122,7 +122,7 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
 
     countdownIntervals[patientID] = setInterval(() => {
         if (timeLeft <= 0) {
-            countdownElement.innerHTML = "Please See Doctor";
+            // countdownElement.innerHTML = "Please See Doctor";
             clearInterval(countdownIntervals[patientID]);
             delete countdownIntervals[patientID];
 

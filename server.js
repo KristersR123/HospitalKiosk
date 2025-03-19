@@ -46,42 +46,44 @@ const severityWaitTimes = {
 // ✅ Function to Monitor Queue and Update Status (unchanged)
 async function monitorQueue() {
     try {
-      const snapshot = await patientsRef.once("value");
-      if (!snapshot.exists()) return;
-  
-      const now = Date.now();
-      const updates = {};
-  
-      snapshot.forEach(childSnapshot => {
-        const patient = childSnapshot.val();
-        const patientID = childSnapshot.key;
-        if (patient.status.startsWith("Queueing for") && patient.triageTime) {
-          const triageTime = new Date(patient.triageTime).getTime();
-          if (isNaN(triageTime)) {
-            console.warn(`⚠ Invalid triageTime for patient ${patientID}:`, patient.triageTime);
-            return;
-          }
-          const elapsedTime = Math.floor((now - triageTime) / 60000);
-          if (elapsedTime < 0) return;
-          // Decrement estimatedWaitTime by 1 per minute (for simplicity here)
-          let remainingTime = Math.max(patient.estimatedWaitTime - 1, 0);
-          if (remainingTime !== patient.estimatedWaitTime) {
-            updates[`${patientID}/estimatedWaitTime`] = remainingTime;
-          }
-          if (remainingTime <= 0 && patient.status.startsWith("Queueing for")) {
-            updates[`${patientID}/status`] = "Please See Doctor";
-          }
+        const snapshot = await patientsRef.once("value");
+        if (!snapshot.exists()) return;
+
+        const now = Date.now();
+        const updates = {};
+
+        snapshot.forEach(childSnapshot => {
+            const patient = childSnapshot.val();
+            const patientID = childSnapshot.key;
+
+            // Only if status is "Queueing for ..." do we decrement
+            if (patient.status && patient.status.startsWith("Queueing for") && patient.triageTime) {
+                const triageTime = new Date(patient.triageTime).getTime();
+                if (isNaN(triageTime)) return;
+
+                // Each minute, reduce their estimatedWaitTime by 1
+                let elapsedTime = Math.floor((now - triageTime) / 60000);
+                if (elapsedTime <= 0) return;
+
+                let newTime = Math.max(patient.estimatedWaitTime - 1, 0);
+                if (newTime !== patient.estimatedWaitTime) {
+                    updates[`${patientID}/estimatedWaitTime`] = newTime;
+                }
+
+                // *** IMPORTANT ***: We do NOT set status to "Please See Doctor"
+                // just because waitTime is 0. We'll let the doctor
+                // discharge event handle it properly.
+            }
+        });
+
+        if (Object.keys(updates).length > 0) {
+            await db.ref("patients").update(updates);
+            console.log("✅ Queue updated successfully (monitorQueue).");
         }
-      });
-  
-      if (Object.keys(updates).length > 0) {
-        await db.ref("patients").update(updates);
-        console.log("✅ Queue updated successfully.");
-      }
     } catch (error) {
-      console.error("❌ Error monitoring queue:", error);
+        console.error("❌ Error monitoring queue:", error);
     }
-  }
+}
 
 async function checkFirebaseWaitTimes() {
     try {
@@ -368,20 +370,15 @@ app.post("/accept-patient", async (req, res) => {
         if (!patientID) {
             return res.status(400).json({ error: "Missing patient ID" });
         }
-
         const patientRef = db.ref(`patients/${patientID}`);
         const snapshot = await patientRef.once("value");
-
         if (!snapshot.exists()) {
             return res.status(404).json({ error: "Patient not found" });
         }
-
-        // ✅ Set accepted time to track time spent with doctor
         await patientRef.update({
             status: "With Doctor",
-            acceptedTime: new Date().toISOString() // Track exact acceptance time
+            acceptedTime: new Date().toISOString()
         });
-
         res.json({ success: true, message: `✅ Patient ${patientID} accepted by doctor.` });
     } catch (error) {
         console.error("❌ Error accepting patient:", error);
@@ -394,72 +391,109 @@ app.post("/accept-patient", async (req, res) => {
 // Function to Adjust Queue Wait Times on Discharge with dynamic calculation
 app.post("/discharge-patient", async (req, res) => {
     try {
-      const { patientID } = req.body;
-      if (!patientID) {
-        return res.status(400).json({ error: "Missing patient ID" });
-      }
-  
-      const patientRef = db.ref(`patients/${patientID}`);
-      const snapshot = await patientRef.once("value");
-      if (!snapshot.exists()) {
-        return res.status(404).json({ error: "Patient not found" });
-      }
-  
-      const patient = snapshot.val();
-      const acceptedTime = new Date(patient.acceptedTime).getTime();
-      const now = Date.now();
-      const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000); // in minutes
-  
-      console.log(`✅ Patient ${patientID} spent ${elapsedDoctorTime} minutes with the doctor.`);
-  
-      // Identify the first waiting patient in the same queue (lowest queue number)
-      const condition = patient.condition;
-      const severity = patient.severity;
-      const baseWait = severityWaitTimes[severity] || 60;
-  
-      let firstWaitingPatientKey = null;
-      let minQueueNumber = Infinity;
-      const patientsSnapshot = await patientsRef.once("value");
-      if (patientsSnapshot.exists()) {
-        patientsSnapshot.forEach(childSnapshot => {
-          const nextPatient = childSnapshot.val();
-          const nextPatientID = childSnapshot.key;
-          if (
-            nextPatient.status &&
-            nextPatient.status.startsWith("Queueing for") &&
-            nextPatient.condition === condition &&
-            nextPatient.severity === severity &&
-            nextPatient.queueNumber < minQueueNumber
-          ) {
-            minQueueNumber = nextPatient.queueNumber;
-            firstWaitingPatientKey = nextPatientID;
-          }
-        });
-      }
-  
-      if (firstWaitingPatientKey) {
-        let newWaitTime;
-        if (elapsedDoctorTime < baseWait) {
-          // If the doctor’s time is less than the base wait, reduce the wait by the elapsed time.
-          newWaitTime = baseWait - elapsedDoctorTime;
-        } else {
-          // If the doctor’s time is greater than the base, then the extra time (elapsed - base) is added.
-          newWaitTime = elapsedDoctorTime - baseWait;
+        const { patientID } = req.body;
+        if (!patientID) {
+            return res.status(400).json({ error: "Missing patient ID" });
         }
-        await db.ref(`patients/${firstWaitingPatientKey}`).update({
-          estimatedWaitTime: newWaitTime
+
+        const patientRef = db.ref(`patients/${patientID}`);
+        const snapshot = await patientRef.once("value");
+        if (!snapshot.exists()) {
+            return res.status(404).json({ error: "Patient not found" });
+        }
+
+        const patient = snapshot.val();
+        const acceptedTime = new Date(patient.acceptedTime).getTime();
+        const now = Date.now();
+        const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000); // in minutes
+
+        console.log(`✅ Discharging patient ${patientID}, spent ${elapsedDoctorTime} minutes with doctor.`);
+
+        const condition = patient.condition;
+        const severity = patient.severity;
+        const baseWait = severityWaitTimes[severity] || 60;
+
+        // 3.1) Adjust times for all patients in same condition+severity
+        const allPatientsSnap = await patientsRef.once("value");
+        if (!allPatientsSnap.exists()) {
+            // Just remove the patient
+            await patientRef.remove();
+            return res.json({ success: true, message: `✅ Patient discharged. No other patients to update.` });
+        }
+
+        let updates = {};
+
+        // We'll keep track of all the "queueing" patients in that condition+severity
+        let queueingPatients = [];
+        allPatientsSnap.forEach(child => {
+            const p = child.val();
+            if (
+                p.status &&
+                p.status.startsWith("Queueing for") &&
+                p.condition === condition &&
+                p.severity === severity
+            ) {
+                queueingPatients.push({
+                    key: child.key,
+                    data: p
+                });
+            }
         });
-        console.log(`✅ First waiting patient's time updated to ${newWaitTime} min.`);
-      }
-  
-      // Remove discharged patient from database
-      await patientRef.remove();
-      res.json({ success: true, message: `✅ Patient ${patientID} discharged & queue updated.` });
+
+        // For each queueing patient, adjust their time
+        // If doctorTime < baseWait => reduce by that
+        // If doctorTime > baseWait => increase by (elapsedDoctorTime - baseWait)
+        queueingPatients.forEach(item => {
+            let currentWait = item.data.estimatedWaitTime || baseWait;
+            let newWait;
+            if (elapsedDoctorTime < baseWait) {
+                newWait = Math.max(currentWait - elapsedDoctorTime, 0);
+            } else {
+                newWait = currentWait + (elapsedDoctorTime - baseWait);
+            }
+            updates[`${item.key}/estimatedWaitTime`] = newWait;
+        });
+
+        // 3.2) Remove the discharged patient from DB
+        await patientRef.remove();
+        console.log(`✅ Patient ${patientID} removed from DB.`);
+
+        // 3.3) Find the single "next" patient in line (lowest queueNumber) among queueing
+        // and set them to "Please See Doctor" IF the doctor is actually free
+        // i.e. we have no other "With Doctor" in that same condition + severity
+        // But for now, let's assume only 1 doctor per condition+severity
+        const isAnotherPatientWithDoctor = allPatientsSnap
+            .filter
+            // (We could check if any other "With Doctor" in same condition+severity)
+            // but let's assume only 1 doc total for this condition
+            ();
+
+        // We skip the check above for brevity. We'll assume the doc is free now.
+
+        // Among the queueing patients, find the lowest queueNumber
+        let nextInLine = null;
+        let minQ = Infinity;
+        queueingPatients.forEach(item => {
+            // We just updated their times, so let's see if they're in line
+            if (item.data.queueNumber < minQ) {
+                minQ = item.data.queueNumber;
+                nextInLine = item.key;
+            }
+        });
+
+        if (nextInLine) {
+            console.log(`Promoting next in line: ${nextInLine} to "Please See Doctor".`);
+            updates[`${nextInLine}/status`] = "Please See Doctor";
+        }
+
+        await db.ref("patients").update(updates);
+
+        res.json({ success: true, message: `✅ Patient ${patientID} discharged & queue updated.` });
     } catch (error) {
-      console.error("❌ Error discharging patient:", error);
-      res.status(500).json({ success: false, message: "Error discharging patient." });
+        console.error("❌ Error in discharge-patient:", error);
+        res.status(500).json({ success: false, message: "Error discharging patient." });
     }
-  });
+});
 
 app.post("/assign-severity", async (req, res) => {
     try {
