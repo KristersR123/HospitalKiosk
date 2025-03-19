@@ -1,10 +1,10 @@
-// ✅ Import Required Modules
+// Import Required Modules
 const express = require("express");
 const admin = require("firebase-admin");
 const cors = require("cors");
 require("dotenv").config();
 
-// ✅ Initialize Firebase Admin SDK
+// Initialize Firebase Admin SDK
 const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -28,12 +28,12 @@ app.use(cors(corsOptions));
 
 const patientsRef = db.ref("patients");
 
-// ✅ Automatically monitor queue and push updates
+// Automatically monitor queue and push updates
 patientsRef.on("child_changed", snapshot => {
     console.log("✅ Patient updated:", snapshot.val());
 });
 
-// ✅ Severity-based Wait Times (Minutes)
+// Severity-based Wait Times (Minutes)
 const severityWaitTimes = {
     "Red": 0,
     "Orange": 10,
@@ -43,7 +43,7 @@ const severityWaitTimes = {
 };
 
 
-// ✅ Function to Monitor Queue and Update Status
+// Function to Monitor Queue and Update Status
 async function monitorQueue() {
     try {
         const patientsRef = db.ref("patients");
@@ -74,12 +74,12 @@ async function monitorQueue() {
 
                 console.log(`⏳ [Monitor Queue] Patient: ${patientID} | Elapsed: ${elapsedTime} min | Remaining: ${remainingTime} min`);
 
-                // ✅ Update `estimatedWaitTime` in Firebase only if it changed
+                // Update `estimatedWaitTime` in Firebase only if it changed
                 if (remainingTime !== patient.estimatedWaitTime) {
                     updates[`${patientID}/estimatedWaitTime`] = remainingTime;
                 }
 
-                // ✅ Update status when time reaches 0
+                // Update status when time reaches 0
                 if (remainingTime <= 0 && patient.status.startsWith("Queueing for")) {
                     updates[`${patientID}/status`] = "Please See Doctor";
                 }
@@ -88,7 +88,7 @@ async function monitorQueue() {
 
         if (Object.keys(updates).length > 0) {
             await db.ref("patients").update(updates);
-            console.log("✅ Queue updated successfully.");
+            console.log("Queue updated successfully.");
         }
     } catch (error) {
         console.error("❌ Error monitoring queue:", error);
@@ -117,7 +117,7 @@ async function checkFirebaseWaitTimes() {
     }
 }
 
-// ✅ Run this function once when the server starts
+// Run this function once when the server starts
 checkFirebaseWaitTimes();
 
 function debounce(func, delay) {
@@ -129,11 +129,11 @@ function debounce(func, delay) {
 }
 
 patientsRef.on("child_changed", debounce(snapshot => {
-    console.log("✅ Patient updated:", snapshot.val());
+    console.log("Patient updated:", snapshot.val());
 }, 1000)); // Ensure only 1 update per second
 
 
-// ✅ Function to Adjust Queue Wait Times on Discharge
+// Function to Adjust Queue Wait Times on Discharge
 async function adjustWaitTimes(patientID) {
     try {
         const patientRef = db.ref(`patients/${patientID}`);
@@ -157,7 +157,7 @@ async function adjustWaitTimes(patientID) {
             const nextPatient = childSnapshot.val();
             const nextPatientID = childSnapshot.key;
 
-            // ✅ Adjust wait times for patients with the same condition & severity
+            // Adjust wait times for patients with the same condition & severity
             if (
                 nextPatient.status.startsWith("Queueing for") &&
                 nextPatient.condition === patient.condition &&
@@ -169,7 +169,7 @@ async function adjustWaitTimes(patientID) {
         });
 
         await db.ref("patients").update(updates);
-        console.log(`✅ Wait times adjusted based on doctor delay: +${elapsedDoctorTime} mins.`);
+        console.log(`Wait times adjusted based on doctor delay: +${elapsedDoctorTime} mins.`);
     } catch (error) {
         console.error("❌ Error adjusting wait times:", error);
     }
@@ -373,11 +373,10 @@ app.post("/check-in", async (req, res) => {
 });
 
 
-// ✅ API: Accept Patient
+// API: Accept Patient
 app.post("/accept-patient", async (req, res) => {
     try {
         const { patientID } = req.body;
-
         if (!patientID) {
             return res.status(400).json({ error: "Missing patient ID" });
         }
@@ -389,12 +388,13 @@ app.post("/accept-patient", async (req, res) => {
             return res.status(404).json({ error: "Patient not found" });
         }
 
+        // ✅ Set accepted time to track time spent with doctor
         await patientRef.update({
             status: "With Doctor",
-            acceptedTime: new Date().toISOString() // ✅ Store time when doctor accepts patient
+            acceptedTime: new Date().toISOString() // Track exact acceptance time
         });
 
-        res.json({ success: true, message: `✅ Patient ${patientID} accepted.` });
+        res.json({ success: true, message: `✅ Patient ${patientID} accepted by doctor.` });
     } catch (error) {
         console.error("❌ Error accepting patient:", error);
         res.status(500).json({ success: false, message: "Error accepting patient." });
@@ -407,7 +407,6 @@ app.post("/accept-patient", async (req, res) => {
 app.post("/discharge-patient", async (req, res) => {
     try {
         const { patientID } = req.body;
-
         if (!patientID) {
             return res.status(400).json({ error: "Missing patient ID" });
         }
@@ -444,17 +443,15 @@ app.post("/discharge-patient", async (req, res) => {
                     nextPatient.condition === condition &&
                     nextPatient.severity === severity
                 ) {
-                    let newWaitTime;
-                    
-                    if (elapsedDoctorTime <= 5) {
-                        // ✅ Reduce wait times by 5 min
-                        newWaitTime = Math.max(nextPatient.estimatedWaitTime - 5, 0);
-                    } else if (elapsedDoctorTime > 10) {
-                        // ✅ Increase wait times by 5 min
-                        newWaitTime = nextPatient.estimatedWaitTime + 5;
+                    let newWaitTime = nextPatient.estimatedWaitTime;
+
+                    if (elapsedDoctorTime < severityWaitTimes[severity]) {
+                        // ✅ Reduce wait time by exact elapsed minutes
+                        newWaitTime = Math.max(nextPatient.estimatedWaitTime - elapsedDoctorTime, 0);
                     } else {
-                        // ✅ No change in wait times if between 5-10 min
-                        newWaitTime = nextPatient.estimatedWaitTime;
+                        // ✅ If exceeded expected wait time, increment dynamically
+                        let extraTime = elapsedDoctorTime - severityWaitTimes[severity];
+                        newWaitTime += extraTime;
                     }
 
                     updates[`${nextPatientID}/estimatedWaitTime`] = newWaitTime;
@@ -462,7 +459,7 @@ app.post("/discharge-patient", async (req, res) => {
             });
 
             await db.ref("patients").update(updates);
-            console.log(`✅ Queue times adjusted based on doctor time.`);
+            console.log(`✅ Queue times dynamically adjusted based on elapsed doctor time.`);
         }
 
         // ✅ Remove discharged patient from database
@@ -474,7 +471,6 @@ app.post("/discharge-patient", async (req, res) => {
         res.status(500).json({ success: false, message: "Error discharging patient." });
     }
 });
-
 
 app.post("/assign-severity", async (req, res) => {
     try {

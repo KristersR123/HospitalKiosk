@@ -10,7 +10,7 @@ function loadDoctorQueue() {
             console.log("📌 Doctor queue:", patients);
             doctorDashboard.innerHTML = "";
 
-            if (!Array.isArray(patients) || patients.length === 0) {
+            if (!patients || patients.length === 0) {
                 doctorDashboard.innerHTML = "<p>No patients currently being seen.</p>";
                 return;
             }
@@ -35,13 +35,12 @@ function loadDoctorQueue() {
 
                 doctorDashboard.appendChild(patientCard);
 
-                // ✅ If patient is already "With Doctor", start the timer
                 if (patient.status === "With Doctor") {
                     startDoctorTimer(patient.id, patient.acceptedTime);
                 }
             });
         })
-        .catch(error => console.error("❌ Error loading doctor queue:", error));
+        .catch(error => console.error("Error loading doctor queue:", error));
 }
 
 
@@ -54,13 +53,13 @@ function acceptPatient(patientID) {
     })
     .then(response => response.json())
     .then(() => {
-        alert(`✅ Patient ${patientID} has been accepted by the doctor.`);
+        alert(`Patient ${patientID} has been accepted by the doctor.`);
         
         document.getElementById(`status-${patientID}`).innerText = "Being Seen";
         document.querySelector(`#doctor-patient-${patientID} .accept-button`).style.display = "none";
         document.querySelector(`#doctor-patient-${patientID} .discharge-button`).style.display = "inline-block";
 
-        // ✅ Start tracking time with doctor
+        // Start tracking time with doctor
         let acceptedTime = new Date().toISOString();
         startDoctorTimer(patientID, acceptedTime);
 
@@ -72,11 +71,10 @@ function acceptPatient(patientID) {
 
 
 function startDoctorTimer(patientID, acceptedTime) {
-    // ✅ Convert acceptedTime to a Date object
     let startTime = new Date(acceptedTime).getTime();
 
     if (doctorTimers[patientID]) {
-        clearInterval(doctorTimers[patientID]); // Stop previous timer if any
+        clearInterval(doctorTimers[patientID]);
     }
 
     doctorTimers[patientID] = setInterval(() => {
@@ -87,12 +85,12 @@ function startDoctorTimer(patientID, acceptedTime) {
         if (timerElement) {
             timerElement.innerHTML = `${elapsedMinutes} min`;
         }
-    }, 60000); // ✅ Updates every 1 minute
+    }, 60000);
 }
 
 // Function to Discharge a Patient
 function dischargePatient(patientID) {
-    clearInterval(doctorTimers[patientID]); // ✅ Stop timer
+    clearInterval(doctorTimers[patientID]); // Stop timer
 
     fetch(`${RENDER_API_URL}/discharge-patient`, {
         method: "POST",
@@ -101,9 +99,9 @@ function dischargePatient(patientID) {
     })
     .then(response => response.json())
     .then(() => {
-        alert(`✅ Patient ${patientID} has been discharged.`);
+        alert(`Patient ${patientID} has been discharged.`);
 
-        // ✅ Remove patient from doctor dashboard
+        // Remove patient from doctor dashboard
         document.getElementById(`doctor-patient-${patientID}`).remove();
         loadDoctorQueue();
     })
@@ -111,7 +109,7 @@ function dischargePatient(patientID) {
 }
 
 
-// ✅ Reload every 10 seconds
+// Reload every 10 seconds
 setInterval(loadDoctorQueue, 10000);
 
 // Load dashboard on page load
