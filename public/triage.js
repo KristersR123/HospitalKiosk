@@ -132,24 +132,25 @@ function loadTriagePatientsRealTime() {
 
 // ✅ Function to Assign Severity Level
 function assignSeverity(patientID) {
-  let severity = document.getElementById(`severity-${patientID}`).value;
-  if (!severity) {
-    alert("Please select a severity level.");
-    return;
-  }
-  fetch(`${RENDER_API_URL}/assign-severity`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ patientID, severity })
-  })
+    let severity = document.getElementById(`severity-${patientID}`).value;
+    if (!severity) {
+        alert("Please select a severity level.");
+        return;
+    }
+
+    fetch(`${RENDER_API_URL}/assign-severity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientID, severity })
+    })
     .then(response => response.json())
     .then(data => {
-      if (data.success) {
-        alert("✅ Severity assigned successfully!");
-        loadTriagePatientsRealTime();
-      } else {
-        alert("❌ Error assigning severity.");
-      }
+        if (data.success) {
+            alert("✅ Severity assigned successfully!");
+            loadTriagePatientsRealTime(); // Refresh patient list dynamically
+        } else {
+            alert("❌ Error assigning severity.");
+        }
     })
     .catch(error => console.error("❌ Error assigning severity:", error));
 }
