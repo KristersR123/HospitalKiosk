@@ -43,62 +43,62 @@ function loadDoctorQueue() {
 
 // Function to Accept a Patient
 function acceptPatient(patientID) {
-    fetch(`${RENDER_API_URL}/accept-patient`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ patientID })
-    })
-      .then(response => response.json())
-      .then(() => {
-        alert(`Patient ${patientID} has been accepted by the doctor.`);
-        const statusElem = document.getElementById(`status-${patientID}`);
-        const acceptBtn = document.querySelector(`#doctor-patient-${patientID} .accept-button`);
-        const dischargeBtn = document.querySelector(`#doctor-patient-${patientID} .discharge-button`);
-        if (statusElem) statusElem.innerText = "Being Seen";
-        if (acceptBtn) acceptBtn.style.display = "none";
-        if (dischargeBtn) dischargeBtn.style.display = "inline-block";
-        let acceptedTime = new Date().toISOString();
-        startDoctorTimer(patientID, acceptedTime);
-        loadDoctorQueue();
-      })
-      .catch(error => console.error("❌ Error accepting patient:", error));
-  }
-
-
-
-function startDoctorTimer(patientID, acceptedTime) {
-  let startTime = new Date(acceptedTime).getTime();
-  if (doctorTimers[patientID]) {
-    clearInterval(doctorTimers[patientID]);
-  }
-  doctorTimers[patientID] = setInterval(() => {
-    let now = new Date().getTime();
-    let elapsedSeconds = Math.floor((now - startTime) / 1000);
-    let minutes = Math.floor(elapsedSeconds / 60);
-    let seconds = elapsedSeconds % 60;
-    let timerElement = document.getElementById(`timer-${patientID}`);
-    if (timerElement) {
-      timerElement.innerHTML = `${minutes} min ${seconds}s`;
-    }
-  }, 1000);
-}
-
-// Function to Discharge a Patient
-function dischargePatient(patientID) {
-  clearInterval(doctorTimers[patientID]);
-  fetch(`${RENDER_API_URL}/discharge-patient`, {
+  fetch(`${RENDER_API_URL}/accept-patient`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ patientID })
   })
     .then(response => response.json())
     .then(() => {
-      alert(`Patient ${patientID} has been discharged.`);
-      const patientCard = document.getElementById(`doctor-patient-${patientID}`);
-      if (patientCard) patientCard.remove();
+      alert(`Patient ${patientID} has been accepted by the doctor.`);
+      const statusElem = document.getElementById(`status-${patientID}`);
+      const acceptBtn = document.querySelector(`#doctor-patient-${patientID} .accept-button`);
+      const dischargeBtn = document.querySelector(`#doctor-patient-${patientID} .discharge-button`);
+      if (statusElem) statusElem.innerText = "Being Seen";
+      if (acceptBtn) acceptBtn.style.display = "none";
+      if (dischargeBtn) dischargeBtn.style.display = "inline-block";
+      let acceptedTime = new Date().toISOString();
+      startDoctorTimer(patientID, acceptedTime);
       loadDoctorQueue();
     })
-    .catch(error => console.error("❌ Error discharging patient:", error));
+    .catch(error => console.error("❌ Error accepting patient:", error));
+}
+
+
+
+function startDoctorTimer(patientID, acceptedTime) {
+    let startTime = new Date(acceptedTime).getTime();
+    if (doctorTimers[patientID]) {
+      clearInterval(doctorTimers[patientID]);
+    }
+    doctorTimers[patientID] = setInterval(() => {
+      let now = new Date().getTime();
+      let elapsedSeconds = Math.floor((now - startTime) / 1000);
+      let minutes = Math.floor(elapsedSeconds / 60);
+      let seconds = elapsedSeconds % 60;
+      let timerElement = document.getElementById(`timer-${patientID}`);
+      if (timerElement) {
+        timerElement.innerHTML = `${minutes} min ${seconds}s`;
+      }
+    }, 1000);
+  }
+
+// Function to Discharge a Patient
+function dischargePatient(patientID) {
+    clearInterval(doctorTimers[patientID]);
+    fetch(`${RENDER_API_URL}/discharge-patient`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ patientID })
+    })
+      .then(response => response.json())
+      .then(() => {
+        alert(`Patient ${patientID} has been discharged.`);
+        const patientCard = document.getElementById(`doctor-patient-${patientID}`);
+        if (patientCard) patientCard.remove();
+        loadDoctorQueue();
+      })
+      .catch(error => console.error("❌ Error discharging patient:", error));
 }
 
 

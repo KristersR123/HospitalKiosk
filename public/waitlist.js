@@ -9,7 +9,7 @@ const severityWaitTimes = {
     "Blue": 240
 };
 
-// ✅ Function to Load & Auto-Update Waitlist in Real-Time
+// Function to load and auto-update the waitlist
 function loadWaitlistRealTime() {
     fetch(`${RENDER_API_URL}/waitlist`)
       .then(response => response.json())
@@ -29,7 +29,6 @@ function loadWaitlistRealTime() {
         // Group patients by condition & severity
         patients.forEach(patient => {
           if (!patient || !patient.status) return;
-          // Exclude patients already with doctor
           if (patient.status === "With Doctor") return;
           let key = `${patient.condition}-${patient.severity}`;
           if (!conditionGroups[key]) {
@@ -37,7 +36,7 @@ function loadWaitlistRealTime() {
           }
           conditionGroups[key].push(patient);
         });
-        // Build UI for each group
+        // Build UI for each condition group
         Object.keys(conditionGroups).forEach(groupKey => {
           let [condition, severity] = groupKey.split("-");
           let sortedQueue = conditionGroups[groupKey].sort((a, b) => a.queueNumber - b.queueNumber);
@@ -66,7 +65,7 @@ function loadWaitlistRealTime() {
               </div>
             `;
             queueList.appendChild(listItem);
-            // Start countdown without auto-promoting
+            // Start countdown and pass the current queue number
             startCountdown(patient.patientID, remainingWaitTime, groupKey, queuePosition);
           });
           conditionSection.appendChild(queueList);
@@ -74,7 +73,8 @@ function loadWaitlistRealTime() {
         });
       })
       .catch(error => console.error("❌ Error loading waitlist:", error));
-  }
+}
+  
 
  // Optionally update a "Doctor is Ready" message if needed
             // ✅ Update "Doctor is Ready" message
@@ -85,45 +85,58 @@ function loadWaitlistRealTime() {
 let countdownIntervals = {}; // Track active countdowns
 
 function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
-  let countdownElement = document.getElementById(`countdown-${patientID}`);
-  if (!countdownElement) return;
-  console.log(`⏳ [Countdown Started] ${patientID}: timeLeft=${initialTime} min`);
-  if (countdownIntervals[patientID]) {
-    clearInterval(countdownIntervals[patientID]);
-  }
-  let timeLeft = Math.floor(initialTime) * 60; // Convert minutes to seconds
-  countdownIntervals[patientID] = setInterval(() => {
-    if (timeLeft <= 0) {
+    let countdownElement = document.getElementById(`countdown-${patientID}`);
+    if (!countdownElement) return;
+    console.log(`⏳ [Countdown Started] ${patientID}: timeLeft=${initialTime} min`);
+    if (countdownIntervals[patientID]) {
       clearInterval(countdownIntervals[patientID]);
-      delete countdownIntervals[patientID];
-      // Instead of auto-promoting here, simply set the countdown display to 0
-      countdownElement.innerHTML = "0 min";
-    } else {
-      let minutes = Math.floor(timeLeft / 60);
-      countdownElement.innerHTML = `${minutes} min`;
     }
-    timeLeft--;
-  }, 1000);
+    let timeLeft = Math.floor(initialTime) * 60; // Convert minutes to seconds
+    countdownIntervals[patientID] = setInterval(() => {
+      if (timeLeft <= 0) {
+        clearInterval(countdownIntervals[patientID]);
+        delete countdownIntervals[patientID];
+        countdownElement.innerHTML = "0 min";
+        // If this is the first patient in line, promote them
+        if (queueNumber === 1) {
+          fetch(`${RENDER_API_URL}/promote-patient`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ patientID })
+          })
+            .then(response => response.json())
+            .then(data => {
+              console.log("Patient promoted:", data);
+            })
+            .catch(err => console.error("Error promoting patient:", err));
+        }
+      } else {
+        let minutes = Math.floor(timeLeft / 60);
+        countdownElement.innerHTML = `${minutes} min`;
+      }
+      timeLeft--;
+    }, 1000);
 }
+  
 
 
-// ✅ Ensure the Doctor Ready Message Appears
-function updateDoctorReadyMessage(conditionKey, queueNumber) {
-    let conditionSection = document.querySelector(`[data-condition="${conditionKey}"]`);
-    if (!conditionSection) return;
-    let doctorReadyDiv = conditionSection.querySelector(".doctor-ready");
-    if (!doctorReadyDiv) {
-        doctorReadyDiv = document.createElement("div");
-        doctorReadyDiv.classList.add("doctor-ready");
-        doctorReadyDiv.style.fontWeight = "bold";
-        doctorReadyDiv.style.color = "#28a745";
-        doctorReadyDiv.style.marginTop = "10px";
-        doctorReadyDiv.style.fontSize = "18px";
-        doctorReadyDiv.style.padding = "10px";
-        conditionSection.appendChild(doctorReadyDiv);
-    }
-    doctorReadyDiv.innerHTML = `🩺 Patient #${queueNumber} - Doctor is Ready for You`;
-}
+// // ✅ Ensure the Doctor Ready Message Appears
+// function updateDoctorReadyMessage(conditionKey, queueNumber) {
+//     let conditionSection = document.querySelector(`[data-condition="${conditionKey}"]`);
+//     if (!conditionSection) return;
+//     let doctorReadyDiv = conditionSection.querySelector(".doctor-ready");
+//     if (!doctorReadyDiv) {
+//         doctorReadyDiv = document.createElement("div");
+//         doctorReadyDiv.classList.add("doctor-ready");
+//         doctorReadyDiv.style.fontWeight = "bold";
+//         doctorReadyDiv.style.color = "#28a745";
+//         doctorReadyDiv.style.marginTop = "10px";
+//         doctorReadyDiv.style.fontSize = "18px";
+//         doctorReadyDiv.style.padding = "10px";
+//         conditionSection.appendChild(doctorReadyDiv);
+//     }
+//     doctorReadyDiv.innerHTML = `🩺 Patient #${queueNumber} - Doctor is Ready for You`;
+// }
 
 // ✅ Auto-refresh every 30 seconds
 setInterval(loadWaitlistRealTime, 30000);
