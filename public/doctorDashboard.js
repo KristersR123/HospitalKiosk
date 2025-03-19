@@ -53,14 +53,13 @@ function acceptPatient(patientID) {
     .then(response => response.json())
     .then(() => {
         alert(`Patient ${patientID} has been accepted by the doctor.`);
-        // Check if the elements exist before updating styles
+        // Check that elements exist before updating
         const statusElem = document.getElementById(`status-${patientID}`);
         const acceptBtn = document.querySelector(`#doctor-patient-${patientID} .accept-button`);
         const dischargeBtn = document.querySelector(`#doctor-patient-${patientID} .discharge-button`);
         if (statusElem) statusElem.innerText = "Being Seen";
         if (acceptBtn) acceptBtn.style.display = "none";
         if (dischargeBtn) dischargeBtn.style.display = "inline-block";
-        // Record current time as acceptedTime
         let acceptedTime = new Date().toISOString();
         startDoctorTimer(patientID, acceptedTime);
         loadDoctorQueue();
@@ -77,18 +76,19 @@ function startDoctorTimer(patientID, acceptedTime) {
     }
     doctorTimers[patientID] = setInterval(() => {
         let now = new Date().getTime();
-        let elapsedMinutes = Math.floor((now - startTime) / 60000);
+        let elapsedSeconds = Math.floor((now - startTime) / 1000);
+        let minutes = Math.floor(elapsedSeconds / 60);
+        let seconds = elapsedSeconds % 60;
         let timerElement = document.getElementById(`timer-${patientID}`);
         if (timerElement) {
-            timerElement.innerHTML = `${elapsedMinutes} min`;
+            timerElement.innerHTML = `${minutes} min ${seconds}s`;
         }
-    }, 60000);
+    }, 1000); // update every second
 }
 
 // Function to Discharge a Patient
 function dischargePatient(patientID) {
-    clearInterval(doctorTimers[patientID]); // Stop timer
-
+    clearInterval(doctorTimers[patientID]);
     fetch(`${RENDER_API_URL}/discharge-patient`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

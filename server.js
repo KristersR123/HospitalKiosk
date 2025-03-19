@@ -391,7 +391,7 @@ app.post("/accept-patient", async (req, res) => {
 
 
 
-// ✅ Function to Adjust Queue Wait Times on Discharge with dynamic calculation
+// Function to Adjust Queue Wait Times on Discharge with dynamic calculation
 app.post("/discharge-patient", async (req, res) => {
     try {
       const { patientID } = req.body;
@@ -412,40 +412,47 @@ app.post("/discharge-patient", async (req, res) => {
   
       console.log(`✅ Patient ${patientID} spent ${elapsedDoctorTime} minutes with the doctor.`);
   
-      // For patients in the same queue (same condition and severity)
+      // Identify the first waiting patient in the same queue (lowest queue number)
       const condition = patient.condition;
       const severity = patient.severity;
       const baseWait = severityWaitTimes[severity] || 60;
   
+      let firstWaitingPatientKey = null;
+      let minQueueNumber = Infinity;
       const patientsSnapshot = await patientsRef.once("value");
       if (patientsSnapshot.exists()) {
-        const updates = {};
         patientsSnapshot.forEach(childSnapshot => {
           const nextPatient = childSnapshot.val();
           const nextPatientID = childSnapshot.key;
           if (
+            nextPatient.status &&
             nextPatient.status.startsWith("Queueing for") &&
             nextPatient.condition === condition &&
-            nextPatient.severity === severity
+            nextPatient.severity === severity &&
+            nextPatient.queueNumber < minQueueNumber
           ) {
-            let currentWait = nextPatient.estimatedWaitTime || baseWait;
-            let newWaitTime;
-            if (elapsedDoctorTime < baseWait) {
-              // Reduce wait time by elapsedDoctorTime
-              newWaitTime = Math.max(currentWait - elapsedDoctorTime, 0);
-            } else {
-              // Increase wait time by (elapsedDoctorTime - baseWait)
-              newWaitTime = currentWait + (elapsedDoctorTime - baseWait);
-            }
-            updates[`${nextPatientID}/estimatedWaitTime`] = newWaitTime;
+            minQueueNumber = nextPatient.queueNumber;
+            firstWaitingPatientKey = nextPatientID;
           }
         });
-  
-        await db.ref("patients").update(updates);
-        console.log(`✅ Queue times adjusted based on elapsed doctor time.`);
       }
   
-      // Remove discharged patient
+      if (firstWaitingPatientKey) {
+        let newWaitTime;
+        if (elapsedDoctorTime < baseWait) {
+          // If the doctor’s time is less than the base wait, reduce the wait by the elapsed time.
+          newWaitTime = baseWait - elapsedDoctorTime;
+        } else {
+          // If the doctor’s time is greater than the base, then the extra time (elapsed - base) is added.
+          newWaitTime = elapsedDoctorTime - baseWait;
+        }
+        await db.ref(`patients/${firstWaitingPatientKey}`).update({
+          estimatedWaitTime: newWaitTime
+        });
+        console.log(`✅ First waiting patient's time updated to ${newWaitTime} min.`);
+      }
+  
+      // Remove discharged patient from database
       await patientRef.remove();
       res.json({ success: true, message: `✅ Patient ${patientID} discharged & queue updated.` });
     } catch (error) {
