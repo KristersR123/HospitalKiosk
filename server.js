@@ -388,7 +388,7 @@ app.post("/accept-patient", async (req, res) => {
 
 
 
-// Function to Adjust Queue Wait Times on Discharge with dynamic calculation
+// Function to Adjust Queue Wait Times on Discharge (Updated)
 app.post("/discharge-patient", async (req, res) => {
     try {
       const { patientID } = req.body;
@@ -405,16 +405,16 @@ app.post("/discharge-patient", async (req, res) => {
       const patient = snapshot.val();
       const acceptedTime = new Date(patient.acceptedTime).getTime();
       const now = Date.now();
-      const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000); // in minutes
+      // Calculate elapsed time in minutes (rounded down)
+      const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000);
   
       console.log(`✅ Discharging patient ${patientID}, spent ${elapsedDoctorTime} minutes with doctor.`);
   
-      // For patients in the same queue (same condition and severity)
       const condition = patient.condition;
       const severity = patient.severity;
       const baseWait = severityWaitTimes[severity] || 60;
   
-      // Get all waiting patients (status starts with "Queueing for") for this condition and severity.
+      // Get all waiting patients in the same condition & severity
       let queueingPatients = [];
       const allPatientsSnap = await patientsRef.once("value");
       if (allPatientsSnap.exists()) {
@@ -431,39 +431,50 @@ app.post("/discharge-patient", async (req, res) => {
         });
       }
   
-      // Sort waiting patients by queueNumber in ascending order.
+      // Sort waiting patients by queueNumber in ascending order
       queueingPatients.sort((a, b) => a.data.queueNumber - b.data.queueNumber);
   
       const updates = {};
   
       if (queueingPatients.length > 0) {
-        // For the very first waiting patient (next in line), recalc their wait time based on elapsedDoctorTime:
-        let newWaitForFirst;
-        if (elapsedDoctorTime < baseWait) {
-          // Patient was discharged early: reduce wait time by elapsed time.
-          newWaitForFirst = Math.max(baseWait - elapsedDoctorTime, 0);
+        // For the first waiting patient, recalc the new wait time based on elapsedDoctorTime:
+        let firstNewWait;
+        if (elapsedDoctorTime <= baseWait) {
+          // If the doctor’s time is less than the base wait,
+          // the new wait time is reduced by elapsed time.
+          firstNewWait = Math.max(baseWait - elapsedDoctorTime, 0);
         } else {
-          // Patient stayed longer than base; add the extra (elapsed - base) minutes.
-          newWaitForFirst = elapsedDoctorTime - baseWait;
+          // If the doctor’s time is greater than the base wait,
+          // the extra (elapsed - base) minutes are added.
+          firstNewWait = elapsedDoctorTime - baseWait;
         }
-        updates[`${queueingPatients[0].key}/estimatedWaitTime`] = newWaitForFirst;
+        // Update the first waiting patient's estimated wait time
+        updates[`${queueingPatients[0].key}/estimatedWaitTime`] = firstNewWait;
   
-        // Optionally, adjust subsequent patients' wait times based on their position.
-        // For example, add baseWait minutes per additional position.
-        for (let i = 1; i < queueingPatients.length; i++) {
-          let newWait = newWaitForFirst + baseWait * i;
-          updates[`${queueingPatients[i].key}/estimatedWaitTime`] = newWait;
+        // Optionally, if the new wait time for the first waiting patient is 0,
+        // set their status to "Please See Doctor" so the doctor can accept them.
+        if (firstNewWait === 0) {
+          updates[`${queueingPatients[0].key}/status`] = "Please See Doctor";
         }
-        console.log(`✅ First waiting patient updated to ${newWaitForFirst} min.`);
+  
+        // For each subsequent waiting patient, add the base wait per additional position.
+        for (let i = 1; i < queueingPatients.length; i++) {
+          // Example: if baseWait is 10, then the second patient's wait is firstNewWait + 10,
+          // the third patient's wait is firstNewWait + 20, etc.
+          updates[`${queueingPatients[i].key}/estimatedWaitTime`] = firstNewWait + baseWait * i;
+        }
+  
+        console.log(`✅ Updated wait times for waiting patients:`, updates);
       }
   
-      // Remove discharged patient from the database.
+      // Remove the discharged patient from the database.
       await patientRef.remove();
+      console.log(`✅ Patient ${patientID} removed from DB.`);
   
-      // Update all calculated wait times.
+      // Apply the wait time updates.
       if (Object.keys(updates).length > 0) {
         await db.ref("patients").update(updates);
-        console.log(`✅ Queue times adjusted based on doctor delay.`);
+        console.log("✅ Queue times adjusted based on doctor delay.");
       }
   
       res.json({ success: true, message: `✅ Patient ${patientID} discharged & queue updated.` });
