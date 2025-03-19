@@ -50,7 +50,6 @@ async function monitorQueue() {
       if (!snapshot.exists()) return;
       const now = Date.now();
       const updates = {};
-  
       snapshot.forEach(childSnapshot => {
         const patient = childSnapshot.val();
         const patientID = childSnapshot.key;
@@ -73,6 +72,7 @@ async function monitorQueue() {
       console.error("❌ Error monitoring queue:", error);
     }
   }
+  
 
 async function checkFirebaseWaitTimes() {
   try {
@@ -442,7 +442,7 @@ app.post("/assign-severity", async (req, res) => {
     }
 });
 
-  // API: Accept Patient
+// Accept endpoint – updates the patient status to "With Doctor" and sets acceptedTime
 app.post("/accept-patient", async (req, res) => {
     try {
       const { patientID } = req.body;
@@ -466,7 +466,8 @@ app.post("/accept-patient", async (req, res) => {
   });
 
 
-// NEW: Promote a patient (set status to "Please See Doctor")
+// Promote endpoint – sets the status of the patient to "Please See Doctor"
+// (This is called by the waitlist front-end when the countdown of the first patient reaches 0.)
 app.post("/promote-patient", async (req, res) => {
     try {
       const { patientID } = req.body;
@@ -480,12 +481,14 @@ app.post("/promote-patient", async (req, res) => {
       console.error("❌ Error promoting patient:", error);
       res.status(500).json({ success: false, message: "Error promoting patient." });
     }
-});
+  });
   
 
 
 
-// UPDATED: Discharge Patient endpoint
+// Discharge endpoint:
+// Remove the patient and adjust the wait times for all waiting patients in the same condition and severity.
+// For the very first waiting patient, if the recalculated wait time is 0, update their status to "Please See Doctor".
 app.post("/discharge-patient", async (req, res) => {
     try {
       const { patientID } = req.body;
@@ -500,7 +503,7 @@ app.post("/discharge-patient", async (req, res) => {
       const patient = snapshot.val();
       const acceptedTime = new Date(patient.acceptedTime).getTime();
       const now = Date.now();
-      const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000);
+      const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000); // in minutes
       console.log(`✅ Discharging patient ${patientID}, spent ${elapsedDoctorTime} minutes with doctor.`);
       const condition = patient.condition;
       const severity = patient.severity;
@@ -545,7 +548,8 @@ app.post("/discharge-patient", async (req, res) => {
       console.error("❌ Error in discharge-patient:", error);
       res.status(500).json({ success: false, message: "Error discharging patient." });
     }
-});
+  });
+  
   
 
 

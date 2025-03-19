@@ -26,7 +26,7 @@ function loadWaitlistRealTime() {
           clearInterval(countdownIntervals[patientID]);
           delete countdownIntervals[patientID];
         });
-        // Group patients by condition & severity
+        // Group patients by condition & severity (exclude those already with doctor)
         patients.forEach(patient => {
           if (!patient || !patient.status) return;
           if (patient.status === "With Doctor") return;
@@ -65,7 +65,7 @@ function loadWaitlistRealTime() {
               </div>
             `;
             queueList.appendChild(listItem);
-            // Start countdown and pass the current queue number
+            // Start the countdown and pass the current queue number
             startCountdown(patient.patientID, remainingWaitTime, groupKey, queuePosition);
           });
           conditionSection.appendChild(queueList);
@@ -73,7 +73,8 @@ function loadWaitlistRealTime() {
         });
       })
       .catch(error => console.error("❌ Error loading waitlist:", error));
-}
+  }
+  
   
 
  // Optionally update a "Doctor is Ready" message if needed
@@ -91,13 +92,13 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
     if (countdownIntervals[patientID]) {
       clearInterval(countdownIntervals[patientID]);
     }
-    let timeLeft = Math.floor(initialTime) * 60; // Convert minutes to seconds
+    let timeLeft = Math.floor(initialTime) * 60; // seconds
     countdownIntervals[patientID] = setInterval(() => {
       if (timeLeft <= 0) {
         clearInterval(countdownIntervals[patientID]);
         delete countdownIntervals[patientID];
         countdownElement.innerHTML = "0 min";
-        // If this is the first patient in line, promote them
+        // If this is the first patient in the queue, promote them.
         if (queueNumber === 1) {
           fetch(`${RENDER_API_URL}/promote-patient`, {
             method: "POST",
@@ -107,6 +108,8 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
             .then(response => response.json())
             .then(data => {
               console.log("Patient promoted:", data);
+              // Optionally refresh the waitlist after promotion.
+              loadWaitlistRealTime();
             })
             .catch(err => console.error("Error promoting patient:", err));
         }
@@ -116,7 +119,8 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
       }
       timeLeft--;
     }, 1000);
-}
+  }
+  
   
 
 
