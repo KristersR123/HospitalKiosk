@@ -462,10 +462,7 @@ app.post("/discharge-patient", async (req, res) => {
     setTimeout(monitorQueueLoop, 60000); // every 60 seconds
   }
   monitorQueueLoop();
-  
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-  });
+
 
 app.post("/assign-severity", async (req, res) => {
     try {
