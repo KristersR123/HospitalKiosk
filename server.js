@@ -453,16 +453,6 @@ app.post("/discharge-patient", async (req, res) => {
       res.status(500).json({ success: false, message: "Error discharging patient." });
     }
   });
-  
-  // Other endpoints remain unchanged (check-in, assign-severity, assign-condition, etc.)
-  
-  // Monitor queue in a loop
-  async function monitorQueueLoop() {
-    await monitorQueue();
-    setTimeout(monitorQueueLoop, 60000); // every 60 seconds
-  }
-  monitorQueueLoop();
-
 
 app.post("/assign-severity", async (req, res) => {
     try {
