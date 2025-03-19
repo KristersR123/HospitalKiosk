@@ -10,7 +10,7 @@ function loadDoctorQueue() {
             console.log("📌 Doctor queue:", patients);
             doctorDashboard.innerHTML = "";
 
-            if (!patients || patients.length === 0) {
+            if (!Array.isArray(patients) || patients.length === 0) {
                 doctorDashboard.innerHTML = "<p>No patients currently being seen.</p>";
                 return;
             }
@@ -21,7 +21,7 @@ function loadDoctorQueue() {
                 patientCard.id = `doctor-patient-${patient.id}`;
 
                 let statusText = patient.status === "With Doctor" ? "Being Seen" : "Waiting for Doctor";
-                let timerDisplay = patient.status === "With Doctor" ? 
+                let timerDisplay = patient.status === "With Doctor" ?
                     `<p>Time With Doctor: <span id="timer-${patient.id}">0 min</span></p>` : "";
 
                 patientCard.innerHTML = `
@@ -43,7 +43,6 @@ function loadDoctorQueue() {
         .catch(error => console.error("Error loading doctor queue:", error));
 }
 
-
 // Function to Accept a Patient
 function acceptPatient(patientID) {
     fetch(`${RENDER_API_URL}/accept-patient`, {
@@ -54,15 +53,16 @@ function acceptPatient(patientID) {
     .then(response => response.json())
     .then(() => {
         alert(`Patient ${patientID} has been accepted by the doctor.`);
-        
-        document.getElementById(`status-${patientID}`).innerText = "Being Seen";
-        document.querySelector(`#doctor-patient-${patientID} .accept-button`).style.display = "none";
-        document.querySelector(`#doctor-patient-${patientID} .discharge-button`).style.display = "inline-block";
-
-        // Start tracking time with doctor
+        // Check if the elements exist before updating styles
+        const statusElem = document.getElementById(`status-${patientID}`);
+        const acceptBtn = document.querySelector(`#doctor-patient-${patientID} .accept-button`);
+        const dischargeBtn = document.querySelector(`#doctor-patient-${patientID} .discharge-button`);
+        if (statusElem) statusElem.innerText = "Being Seen";
+        if (acceptBtn) acceptBtn.style.display = "none";
+        if (dischargeBtn) dischargeBtn.style.display = "inline-block";
+        // Record current time as acceptedTime
         let acceptedTime = new Date().toISOString();
         startDoctorTimer(patientID, acceptedTime);
-
         loadDoctorQueue();
     })
     .catch(error => console.error("❌ Error accepting patient:", error));
@@ -72,16 +72,13 @@ function acceptPatient(patientID) {
 
 function startDoctorTimer(patientID, acceptedTime) {
     let startTime = new Date(acceptedTime).getTime();
-
     if (doctorTimers[patientID]) {
         clearInterval(doctorTimers[patientID]);
     }
-
     doctorTimers[patientID] = setInterval(() => {
         let now = new Date().getTime();
-        let elapsedMinutes = Math.floor((now - startTime) / 60000); // Convert to minutes
+        let elapsedMinutes = Math.floor((now - startTime) / 60000);
         let timerElement = document.getElementById(`timer-${patientID}`);
-
         if (timerElement) {
             timerElement.innerHTML = `${elapsedMinutes} min`;
         }
@@ -100,13 +97,13 @@ function dischargePatient(patientID) {
     .then(response => response.json())
     .then(() => {
         alert(`Patient ${patientID} has been discharged.`);
-
-        // Remove patient from doctor dashboard
-        document.getElementById(`doctor-patient-${patientID}`).remove();
+        const patientCard = document.getElementById(`doctor-patient-${patientID}`);
+        if (patientCard) patientCard.remove();
         loadDoctorQueue();
     })
     .catch(error => console.error("❌ Error discharging patient:", error));
 }
+
 
 
 // Reload every 10 seconds
