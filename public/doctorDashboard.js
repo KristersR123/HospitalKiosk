@@ -66,7 +66,7 @@ function acceptPatient(patientID) {
 
         loadDoctorQueue();
     })
-    .catch(error => console.error("❌ Error accepting patient:", error));
+    .catch(error => console.error("Error accepting patient:", error));
 }
 
 

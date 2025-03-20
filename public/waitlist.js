@@ -9,12 +9,12 @@ const severityWaitTimes = {
     "Blue": 240
 };
 
-// ✅ Function to Load & Auto-Update Waitlist in Real-Time
+// Function to Load & Auto-Update Waitlist in Real-Time
 function loadWaitlistRealTime() {
     fetch(`${RENDER_API_URL}/waitlist`)
         .then(response => response.json())
         .then(patients => {
-            console.log("📌 Waitlist Data:", patients);
+            console.log("Waitlist Data:", patients);
 
             waitlistContainer.innerHTML = "";
 
@@ -25,7 +25,7 @@ function loadWaitlistRealTime() {
 
             let conditionGroups = {};
 
-            // ✅ Clear countdown timers before reloading data
+            // Clear countdown timers before reloading data
             Object.keys(countdownIntervals).forEach(patientID => {
                 clearInterval(countdownIntervals[patientID]);
                 delete countdownIntervals[patientID];
@@ -35,13 +35,13 @@ function loadWaitlistRealTime() {
 
             patients.forEach(patient => {
                 if (!patient || !patient.status) {
-                    console.warn("⚠ Skipping invalid patient entry:", patient);
+                    console.warn("Skipping invalid patient entry:", patient);
                     return;
                 }
 
-                // ✅ Exclude patients already "With Doctor" from the waitlist UI
+                // Exclude patients already "With Doctor" from the waitlist UI
                 if (patient.status === "With Doctor") {
-                    console.log(`⏳ Skipping patient ${patient.patientID}, already with doctor.`);
+                    console.log(`Skipping patient ${patient.patientID}, already with doctor.`);
                     return;
                 }
 
@@ -51,7 +51,7 @@ function loadWaitlistRealTime() {
                 }
                 conditionGroups[key].push(patient);
 
-                // ✅ Track the first patient who needs to see a doctor
+                // Track the first patient who needs to see a doctor
                 if (patient.status === "Please See Doctor" && (!firstPatientInQueue || patient.queueNumber < firstPatientInQueue.queueNumber)) {
                     firstPatientInQueue = patient;
                 }
@@ -73,37 +73,58 @@ function loadWaitlistRealTime() {
                 let queueList = document.createElement("ul");
                 queueList.classList.add("patient-list");
 
-                sortedQueue.forEach((patient, index) => {
-                    let queuePosition = index + 1;
+                // sortedQueue.forEach((patient, index) => {
+                //     let queuePosition = index + 1;
+                //     let listItem = document.createElement("li");
+                //     listItem.classList.add("patient-item");
+                //     listItem.id = `queue-${patient.patientID}`;
+
+                //     let remainingWaitTime = patient.estimatedWaitTime !== undefined 
+                //         ? patient.estimatedWaitTime 
+                //         : severityWaitTimes[patient.severity] || 60;
+
+                //     listItem.innerHTML = `
+                //         <div class="queue-patient">
+                //             Queue Position: <span class="queue-pos">#${queuePosition}</span><br>
+                //             Estimated Wait Time: <span id="countdown-${patient.patientID}" class="countdown">${Math.floor(remainingWaitTime)} min</span>
+                //         </div>
+                //     `;
+
+                //     queueList.appendChild(listItem);
+                //     startCountdown(patient.patientID, remainingWaitTime, groupKey, queuePosition);
+                // });
+                sortedQueue.forEach((patient) => {
+                    // Use the fixed patient.queueNumber that was assigned at check-in.
+                    let fixedQueueNumber = patient.queueNumber;
                     let listItem = document.createElement("li");
                     listItem.classList.add("patient-item");
                     listItem.id = `queue-${patient.patientID}`;
-
+                  
                     let remainingWaitTime = patient.estimatedWaitTime !== undefined 
                         ? patient.estimatedWaitTime 
                         : severityWaitTimes[patient.severity] || 60;
-
+                  
                     listItem.innerHTML = `
                         <div class="queue-patient">
-                            Queue Position: <span class="queue-pos">#${queuePosition}</span><br>
+                            Queue Position: <span class="queue-pos">#${fixedQueueNumber}</span><br>
                             Estimated Wait Time: <span id="countdown-${patient.patientID}" class="countdown">${Math.floor(remainingWaitTime)} min</span>
                         </div>
                     `;
-
+                  
                     queueList.appendChild(listItem);
-                    startCountdown(patient.patientID, remainingWaitTime, groupKey, queuePosition);
-                });
+                    startCountdown(patient.patientID, remainingWaitTime, groupKey, fixedQueueNumber);
+                  });
 
                 conditionSection.appendChild(queueList);
                 waitlistContainer.appendChild(conditionSection);
             });
 
-            // ✅ Update "Doctor is Ready" message
+            // Update "Doctor is Ready" message
             if (firstPatientInQueue) {
                 updateDoctorReadyMessage(`${firstPatientInQueue.condition}-${firstPatientInQueue.severity}`, firstPatientInQueue.queueNumber);
             }
         })
-        .catch(error => console.error("❌ Error loading waitlist:", error));
+        .catch(error => console.error("Error loading waitlist:", error));
 }
 
 let countdownIntervals = {}; // Track active countdowns
@@ -112,7 +133,7 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
     let countdownElement = document.getElementById(`countdown-${patientID}`);
     if (!countdownElement) return;
 
-    console.log(`⏳ [Countdown Started] ${patientID}: timeLeft=${initialTime} min`);
+    console.log(`[Countdown Started] ${patientID}: timeLeft=${initialTime} min`);
 
     if (countdownIntervals[patientID]) {
         clearInterval(countdownIntervals[patientID]);
@@ -126,7 +147,6 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
             clearInterval(countdownIntervals[patientID]);
             delete countdownIntervals[patientID];
 
-            // ✅ **NEW: Ensure the "Doctor Ready" message appears**
             updateDoctorReadyMessage(conditionKey, queueNumber);
         } else {
             let minutes = Math.floor(timeLeft / 60);
@@ -137,11 +157,11 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
 }
 
 
-// ✅ Ensure the Doctor Ready Message Appears
+// Doctor Ready Message Appears
 function updateDoctorReadyMessage(conditionKey, queueNumber) {
     let conditionSection = document.querySelector(`[data-condition="${conditionKey}"]`);
     if (!conditionSection) {
-        console.warn(`⚠ Condition section not found for ${conditionKey}`);
+        console.warn(`Condition section not found for ${conditionKey}`);
         return;
     }
 
@@ -157,15 +177,15 @@ function updateDoctorReadyMessage(conditionKey, queueNumber) {
         conditionSection.appendChild(doctorReadyDiv);
     }
 
-    // ✅ Show the "Doctor is Ready" message
-    doctorReadyDiv.innerHTML = `🩺 Patient #${queueNumber} - Doctor is Ready for You`;
+    // Show the "Doctor is Ready" message
+    doctorReadyDiv.innerHTML = `Patient #${queueNumber} - Doctor is Ready for You`;
 }
 
-// ✅ Auto-refresh every 30 seconds
+// Auto-refresh every 30 seconds
 setInterval(loadWaitlistRealTime, 30000);
 
 
-// ✅ Ensure this runs before `loadWaitlistRealTime`
+// Ensure this runs before `loadWaitlistRealTime`
 document.addEventListener("DOMContentLoaded", () => {
     loadWaitlistRealTime();
 });
@@ -173,5 +193,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
-// // ✅ Load waitlist when the page loads
+// // Load waitlist when the page loads
 // document.addEventListener("DOMContentLoaded", loadWaitlistRealTime);

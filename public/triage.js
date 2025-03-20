@@ -91,7 +91,7 @@
 const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
 const patientList = document.getElementById("patient-list");
 
-// ✅ Function to Load Patients for Triage
+// Function to Load Patients for Triage
 function loadTriagePatientsRealTime() {
     fetch(`${RENDER_API_URL}/patients-awaiting-triage`)
     .then(response => response.json())
@@ -130,7 +130,7 @@ function loadTriagePatientsRealTime() {
     .catch(error => console.error("❌ Error loading triage patients:", error));
 }
 
-// ✅ Function to Assign Severity Level
+// Function to Assign Severity Level
 function assignSeverity(patientID) {
     let severity = document.getElementById(`severity-${patientID}`).value;
     if (!severity) {
@@ -146,17 +146,17 @@ function assignSeverity(patientID) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert("✅ Severity assigned successfully!");
+            alert("Severity assigned successfully!");
             loadTriagePatientsRealTime(); // Refresh patient list dynamically
         } else {
-            alert("❌ Error assigning severity.");
+            alert("Error assigning severity.");
         }
     })
     .catch(error => console.error("❌ Error assigning severity:", error));
 }
 
-// ✅ Automatically reload every 5 seconds for real-time updates
+// Automatically reload every 5 seconds for real-time updates
 setInterval(loadTriagePatientsRealTime, 5000);
 
-// ✅ Load patients when the page loads
+// Load patients when the page loads
 document.addEventListener("DOMContentLoaded", loadTriagePatientsRealTime);
