@@ -81,9 +81,9 @@ async function monitorQueue() {
                 patient.status.startsWith("Queueing for") &&
                 patient.triageTime
             ) {
-                // Use the baseWaitTime saved at triage; if not available, fall back to the current estimatedWaitTime.
-                const baseline = (patient.baseWaitTime !== undefined)
-                    ? patient.baseWaitTime
+                // Inside monitorQueue, in the waiting patients loop:
+                const baseline = (patient.initialWaitTime !== undefined)
+                    ? patient.initialWaitTime
                     : patient.estimatedWaitTime || 0;
                 const triageTime = new Date(patient.triageTime).getTime();
                 const minutesPassed = Math.floor((now - triageTime) / 60000);
@@ -516,11 +516,11 @@ app.post("/assign-severity", async (req, res) => {
         });
 
         const estimatedWaitTime = lastWaitTime + baseWaitTime;
-        // Save baseWaitTime so that we can always recalc from the original wait time.
         await db.ref(`patients/${foundPatientKey}`).update({
             severity,
             estimatedWaitTime,
-            baseWaitTime, // new field
+            baseWaitTime, // still available if needed
+            initialWaitTime: estimatedWaitTime,  // new field: full original wait time
             status: `Queueing for ${severity}`,
             triageTime: new Date().toISOString()
         });
