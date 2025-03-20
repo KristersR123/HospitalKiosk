@@ -477,19 +477,17 @@ app.post("/discharge-patient", async (req, res) => {
                 waitingPatient.severity === severity &&
                 waitingPatient.triageTime // ensure triageTime exists
             ) {
-                // Use the previously stored initialWaitTime if available, else use estimatedWaitTime as baseline.
+                // In the discharge endpoint, for each waiting patient:
                 const currentInitial = (waitingPatient.initialWaitTime !== undefined)
-                    ? waitingPatient.initialWaitTime
-                    : (waitingPatient.estimatedWaitTime || 0);
-                // Deduct the doctor's elapsed time permanently from the baseline.
+                ? waitingPatient.initialWaitTime
+                : (waitingPatient.estimatedWaitTime || 0);
+                // Permanently deduct the doctor's elapsed time
                 const newInitial = Math.max(currentInitial - elapsedDoctorTime, 0);
-                // Recalculate estimated wait time based on the new baseline and the minutes passed since triage.
-                const triageTime = new Date(waitingPatient.triageTime).getTime();
-                const minutesPassed = Math.floor((Date.now() - triageTime) / 60000);
-                const newEstimated = Math.max(newInitial - minutesPassed, 0);
-                
+                // Reset the estimated wait time to the new baseline (no decay yet)
+                // And update the triageTime to now so that future decay starts fresh.
                 updates[`${waitingPatientID}/initialWaitTime`] = newInitial;
-                updates[`${waitingPatientID}/estimatedWaitTime`] = newEstimated;
+                updates[`${waitingPatientID}/estimatedWaitTime`] = newInitial;
+                updates[`${waitingPatientID}/triageTime`] = new Date().toISOString();
             }
         });
         
