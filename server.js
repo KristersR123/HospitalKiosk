@@ -43,57 +43,92 @@ const severityWaitTimes = {
 };
 
 
-// Function to Monitor Queue and Update Status
+/* ===================================================
+   REAL-TIME MONITOR FUNCTION
+=================================================== */
+// This function recalculates wait times in real time.
+// It uses a stored "baseWaitTime" (set at triage) as the starting point,
+// then subtracts the minutes passed since triage,
+// and then applies a doctor-based adjustment if a patient is "With Doctor" in the same group.
 async function monitorQueue() {
     try {
-        const patientsRef = db.ref("patients");
         const snapshot = await patientsRef.once("value");
-
         if (!snapshot.exists()) return;
 
         const now = Date.now();
         const updates = {};
 
+        // Build a mapping of active doctor sessions by "condition-severity".
+        // If there is more than one patient with a doctor, we choose the earliest accepted time.
+        const doctorSessions = {};
         snapshot.forEach(childSnapshot => {
             const patient = childSnapshot.val();
-            const patientID = childSnapshot.key;  
+            if (patient.status === "With Doctor" && patient.acceptedTime) {
+                const groupKey = `${patient.condition}-${patient.severity}`;
+                const acceptedTime = new Date(patient.acceptedTime).getTime();
+                if (!doctorSessions[groupKey] || acceptedTime < doctorSessions[groupKey]) {
+                    doctorSessions[groupKey] = acceptedTime;
+                }
+            }
+        });
 
-            if (patient.status.startsWith("Queueing for") && patient.triageTime) {
+        // Loop through waiting patients to update their wait times.
+        snapshot.forEach(childSnapshot => {
+            const patient = childSnapshot.val();
+            const patientID = childSnapshot.key;
+            if (
+                patient.status &&
+                patient.status.startsWith("Queueing for") &&
+                patient.triageTime
+            ) {
+                // Use the baseWaitTime saved at triage; if not available, fall back to the current estimatedWaitTime.
+                const baseline = (patient.baseWaitTime !== undefined)
+                    ? patient.baseWaitTime
+                    : patient.estimatedWaitTime || 0;
                 const triageTime = new Date(patient.triageTime).getTime();
+                const minutesPassed = Math.floor((now - triageTime) / 60000);
+                let newWaitTime = baseline - minutesPassed; // natural decay
 
-                if (isNaN(triageTime)) {
-                    console.warn(`⚠ Warning: Invalid triageTime for patient ${patientID}`, patient.triageTime);
-                    return;
+                // Check for an active doctor session for the same condition & severity.
+                const groupKey = `${patient.condition}-${patient.severity}`;
+                if (doctorSessions[groupKey]) {
+                    const doctorStart = doctorSessions[groupKey];
+                    const doctorElapsed = Math.floor((now - doctorStart) / 60000);
+                    // Compute the adjustment:
+                    // - If doctorElapsed is less than 10, subtract the full doctorElapsed (e.g., 6 minutes means -6).
+                    // - If doctorElapsed is more than 10, add the extra minutes (e.g., 13 minutes means +(13-10)=+3).
+                    const adjustment = doctorElapsed < 10 ? -doctorElapsed : (doctorElapsed - 10);
+                    newWaitTime += adjustment;
                 }
 
-                const elapsedTime = Math.floor((now - triageTime) / 60000); // Convert to minutes
-                if (elapsedTime < 0) return;
-
-                // Instead of recalculating from base severity, decrement only from assigned estimatedWaitTime
-                let remainingTime = Math.max(patient.estimatedWaitTime - 1, 0);
-
-                console.log(`[Monitor Queue] Patient: ${patientID} | Elapsed: ${elapsedTime} min | Remaining: ${remainingTime} min`);
-
-                // Update `estimatedWaitTime` in Firebase only if it changed
-                if (remainingTime !== patient.estimatedWaitTime) {
-                    updates[`${patientID}/estimatedWaitTime`] = remainingTime;
-                }
-
-                // Update status when time reaches 0
-                if (remainingTime <= 0 && patient.status.startsWith("Queueing for")) {
+                // If the new wait time is 0 or less, update status.
+                if (newWaitTime <= 0) {
+                    newWaitTime = 0;
                     updates[`${patientID}/status`] = "Please See Doctor";
+                }
+                // Only update if there's a change.
+                if (newWaitTime !== patient.estimatedWaitTime) {
+                    updates[`${patientID}/estimatedWaitTime`] = newWaitTime;
                 }
             }
         });
 
         if (Object.keys(updates).length > 0) {
-            await db.ref("patients").update(updates);
-            console.log("Queue updated successfully.");
+            await patientsRef.update(updates);
+            console.log("Real-time queue times updated:", updates);
         }
     } catch (error) {
-        console.error("Error monitoring queue:", error);
+        console.error("Error in monitorQueue:", error);
     }
 }
+
+// Schedule the monitor to run every minute.
+async function monitorQueueLoop() {
+    await monitorQueue();
+    setTimeout(monitorQueueLoop, 60000); // 60 seconds interval
+}
+monitorQueueLoop();
+
 
 async function checkFirebaseWaitTimes() {
     try {
@@ -175,8 +210,9 @@ async function adjustWaitTimes(patientID) {
     }
 }
 
-
-
+/* ===================================================
+   API ENDPOINTS
+=================================================== */
 
 app.get('/patient-wait-time/:patientID', async (req, res) => {
     try {
@@ -402,72 +438,27 @@ app.post("/accept-patient", async (req, res) => {
 
 
 
-// Discharge Patient & Adjust Queue Times
+// --- Discharge Endpoint ---
+// Simplified to just remove the patient record.
+// The real-time monitor handles wait time updates continuously.
 app.post("/discharge-patient", async (req, res) => {
     try {
         const { patientID } = req.body;
-
         if (!patientID) {
             return res.status(400).json({ error: "Missing patient ID" });
         }
-
         const patientRef = db.ref(`patients/${patientID}`);
         const snapshot = await patientRef.once("value");
-
         if (!snapshot.exists()) {
             return res.status(404).json({ error: "Patient not found" });
         }
-
         const patient = snapshot.val();
         const acceptedTime = new Date(patient.acceptedTime).getTime();
         const now = Date.now();
-        const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000); // Convert to minutes
-
+        const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000);
         console.log(`Patient ${patientID} spent ${elapsedDoctorTime} minutes with the doctor.`);
-
-        // Update Wait Times for Other Patients in the Same Condition & Severity
-        const condition = patient.condition;
-        const severity = patient.severity;
-
-        const patientsRef = db.ref("patients");
-        const patientsSnapshot = await patientsRef.once("value");
-
-        if (patientsSnapshot.exists()) {
-            const updates = {};
-            patientsSnapshot.forEach(childSnapshot => {
-                const nextPatient = childSnapshot.val();
-                const nextPatientID = childSnapshot.key;
-
-                if (
-                    nextPatient.status.startsWith("Queueing for") &&
-                    nextPatient.condition === condition &&
-                    nextPatient.severity === severity
-                ) {
-                    let newWaitTime;
-                    
-                    if (elapsedDoctorTime <= 5) {
-                        // Reduce wait times by 5 min
-                        newWaitTime = Math.max(nextPatient.estimatedWaitTime - 5, 0);
-                    } else if (elapsedDoctorTime > 10) {
-                        // Increase wait times by 5 min
-                        newWaitTime = nextPatient.estimatedWaitTime + 5;
-                    } else {
-                        // No change in wait times if between 5-10 min
-                        newWaitTime = nextPatient.estimatedWaitTime;
-                    }
-
-                    updates[`${nextPatientID}/estimatedWaitTime`] = newWaitTime;
-                }
-            });
-
-            await db.ref("patients").update(updates);
-            console.log(`Queue times adjusted based on doctor time.`);
-        }
-
-        // Remove discharged patient from database
         await patientRef.remove();
-
-        res.json({ success: true, message: `Patient ${patientID} discharged & queue updated.` });
+        res.json({ success: true, message: `Patient ${patientID} discharged.` });
     } catch (error) {
         console.error("Error discharging patient:", error);
         res.status(500).json({ success: false, message: "Error discharging patient." });
@@ -475,6 +466,8 @@ app.post("/discharge-patient", async (req, res) => {
 });
 
 
+// --- Updated /assign-severity endpoint ---
+// When a patient's severity is assigned, we now store a "baseWaitTime" for real-time calculations.
 app.post("/assign-severity", async (req, res) => {
     try {
         const { patientID, severity } = req.body;
@@ -518,22 +511,22 @@ app.post("/assign-severity", async (req, res) => {
                 patient.severity === severity &&
                 patient.status.startsWith("Queueing for")
             ) {
-                lastWaitTime = Math.max(lastWaitTime, patient.estimatedWaitTime);
+                lastWaitTime = Math.max(lastWaitTime, patient.estimatedWaitTime || 0);
             }
         });
 
         const estimatedWaitTime = lastWaitTime + baseWaitTime;
-
+        // Save baseWaitTime so that we can always recalc from the original wait time.
         await db.ref(`patients/${foundPatientKey}`).update({
             severity,
             estimatedWaitTime,
+            baseWaitTime, // new field
             status: `Queueing for ${severity}`,
             triageTime: new Date().toISOString()
         });
 
-        console.log(`Severity assigned for patient ${patientID} with wait time ${estimatedWaitTime} min.`);
-
-        res.json({ success: true, estimatedWaitTime }); // Ensure a proper response is returned
+        console.log(`Severity assigned for patient ${patientID} with base wait time ${baseWaitTime} min.`);
+        res.json({ success: true, estimatedWaitTime });
     } catch (error) {
         console.error("Error assigning severity:", error);
         res.status(500).json({ error: "Internal server error", details: error.message });
@@ -585,14 +578,6 @@ app.post("/assign-condition", async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
-
-async function monitorQueueLoop() {
-    await monitorQueue();
-    setTimeout(monitorQueueLoop, 60000); // Run again after 60s
-}
-
-// Start monitoring loop
-monitorQueueLoop();
 
 // Start Server
 app.listen(PORT, () => {

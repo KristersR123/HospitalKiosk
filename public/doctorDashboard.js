@@ -7,7 +7,7 @@ function loadDoctorQueue() {
     fetch(`${RENDER_API_URL}/doctor-queue`)
         .then(response => response.json())
         .then(patients => {
-            console.log("📌 Doctor queue:", patients);
+            console.log("Doctor queue:", patients);
             doctorDashboard.innerHTML = "";
 
             if (!Array.isArray(patients) || patients.length === 0) {
@@ -122,7 +122,7 @@ function dischargePatient(patientID) {
         document.getElementById(`doctor-patient-${patientID}`).remove();
         loadDoctorQueue();
     })
-    .catch(error => console.error("❌ Error discharging patient:", error));
+    .catch(error => console.error("Error discharging patient:", error));
 }
 
 
