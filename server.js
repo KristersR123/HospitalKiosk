@@ -438,25 +438,67 @@ app.post("/accept-patient", async (req, res) => {
 
 
 
-// --- Discharge Endpoint ---
-// Simplified to just remove the patient record.
-// The real-time monitor handles wait time updates continuously.
+// --- Updated Discharge Endpoint ---
+// When a patient is discharged, update waiting patients in the same condition & severity
+// by subtracting the doctor’s elapsed time from their baseline (initialWaitTime)
+// before removing the discharged patient.
 app.post("/discharge-patient", async (req, res) => {
     try {
         const { patientID } = req.body;
         if (!patientID) {
             return res.status(400).json({ error: "Missing patient ID" });
         }
+        
         const patientRef = db.ref(`patients/${patientID}`);
         const snapshot = await patientRef.once("value");
         if (!snapshot.exists()) {
             return res.status(404).json({ error: "Patient not found" });
         }
-        const patient = snapshot.val();
-        const acceptedTime = new Date(patient.acceptedTime).getTime();
+        const dischargedPatient = snapshot.val();
+        const acceptedTime = new Date(dischargedPatient.acceptedTime).getTime();
         const now = Date.now();
-        const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000);
+        const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000); // in minutes
         console.log(`Patient ${patientID} spent ${elapsedDoctorTime} minutes with the doctor.`);
+        
+        // Update waiting patients in the same condition & severity:
+        const condition = dischargedPatient.condition;
+        const severity = dischargedPatient.severity;
+        const waitingSnapshot = await db.ref("patients").once("value");
+        const updates = {};
+        
+        waitingSnapshot.forEach(childSnapshot => {
+            const waitingPatient = childSnapshot.val();
+            const waitingPatientID = childSnapshot.key;
+            // Only update waiting patients in the same condition and severity whose status starts with "Queueing for"
+            if (
+                waitingPatient.status &&
+                waitingPatient.status.startsWith("Queueing for") &&
+                waitingPatient.condition === condition &&
+                waitingPatient.severity === severity &&
+                waitingPatient.triageTime // ensure triageTime exists
+            ) {
+                // Use the previously stored initialWaitTime if available, else use estimatedWaitTime as baseline.
+                const currentInitial = (waitingPatient.initialWaitTime !== undefined)
+                    ? waitingPatient.initialWaitTime
+                    : (waitingPatient.estimatedWaitTime || 0);
+                // Deduct the doctor's elapsed time permanently from the baseline.
+                const newInitial = Math.max(currentInitial - elapsedDoctorTime, 0);
+                // Recalculate estimated wait time based on the new baseline and the minutes passed since triage.
+                const triageTime = new Date(waitingPatient.triageTime).getTime();
+                const minutesPassed = Math.floor((Date.now() - triageTime) / 60000);
+                const newEstimated = Math.max(newInitial - minutesPassed, 0);
+                
+                updates[`${waitingPatientID}/initialWaitTime`] = newInitial;
+                updates[`${waitingPatientID}/estimatedWaitTime`] = newEstimated;
+            }
+        });
+        
+        if (Object.keys(updates).length > 0) {
+            await db.ref("patients").update(updates);
+            console.log("Updated waiting patients baseline:", updates);
+        }
+        
+        // Now remove the discharged patient
         await patientRef.remove();
         res.json({ success: true, message: `Patient ${patientID} discharged.` });
     } catch (error) {
