@@ -418,74 +418,42 @@ app.post("/accept-patient", async (req, res) => {
 
 
 // Discharge Patient & Adjust Queue Times
+// Function to Adjust Queue Times on Discharge
 app.post("/discharge-patient", async (req, res) => {
+    const { patientID } = req.body;
     try {
-        const { patientID } = req.body;
-
-        if (!patientID) {
-            return res.status(400).json({ error: "Missing patient ID" });
-        }
-
         const patientRef = db.ref(`patients/${patientID}`);
-        const snapshot = await patientRef.once("value");
+        const patientSnapshot = await patientRef.once("value");
+        const patient = patientSnapshot.val();
 
-        if (!snapshot.exists()) {
-            return res.status(404).json({ error: "Patient not found" });
+        if (!patient) {
+            res.status(404).send({ error: "Patient not found", success: false });
+            return;
         }
 
-        const patient = snapshot.val();
+        // Calculate the time difference
         const acceptedTime = new Date(patient.acceptedTime).getTime();
-        const now = Date.now();
-        const elapsedDoctorTime = Math.floor((now - acceptedTime) / 60000); // Convert to minutes
+        const now = new Date().getTime();
+        const timeSpent = (now - acceptedTime) / 60000; // Convert milliseconds to minutes
 
-        console.log(`Patient ${patientID} spent ${elapsedDoctorTime} minutes with the doctor.`);
+        // Adjust the wait times for other patients
+        const updates = {};
+        const allPatientsSnapshot = await db.ref("patients").orderByChild("condition").equalTo(patient.condition).once("value");
+        allPatientsSnapshot.forEach(snap => {
+            const p = snap.val();
+            if (p.id !== patientID && p.status === "Waiting") {
+                let newTime = (p.estimatedWaitTime || 0) + (timeSpent - (p.estimatedWaitTime || 0));
+                updates[snap.key] = { ...p, estimatedWaitTime: Math.max(0, newTime) };
+            }
+        });
 
-        // Update Wait Times for Other Patients in the Same Condition & Severity
-        const condition = patient.condition;
-        const severity = patient.severity;
+        await db.ref("patients").update(updates);
+        await patientRef.remove(); // Remove the discharged patient from the database
 
-        const patientsRef = db.ref("patients");
-        const patientsSnapshot = await patientsRef.once("value");
-
-        if (patientsSnapshot.exists()) {
-            const updates = {};
-            patientsSnapshot.forEach(childSnapshot => {
-                const nextPatient = childSnapshot.val();
-                const nextPatientID = childSnapshot.key;
-
-                if (
-                    nextPatient.status.startsWith("Queueing for") &&
-                    nextPatient.condition === condition &&
-                    nextPatient.severity === severity
-                ) {
-                    let newWaitTime;
-                    
-                    if (elapsedDoctorTime <= 5) {
-                        // Reduce wait times by 5 min
-                        newWaitTime = Math.max(nextPatient.estimatedWaitTime - 5, 0);
-                    } else if (elapsedDoctorTime > 10) {
-                        // Increase wait times by 5 min
-                        newWaitTime = nextPatient.estimatedWaitTime + 5;
-                    } else {
-                        // No change in wait times if between 5-10 min
-                        newWaitTime = nextPatient.estimatedWaitTime;
-                    }
-
-                    updates[`${nextPatientID}/estimatedWaitTime`] = newWaitTime;
-                }
-            });
-
-            await db.ref("patients").update(updates);
-            console.log(`Queue times adjusted based on doctor time.`);
-        }
-
-        // Remove discharged patient from database
-        await patientRef.remove();
-
-        res.json({ success: true, message: `Patient ${patientID} discharged & queue updated.` });
+        res.send({ success: true, message: "Patient discharged and queue updated." });
     } catch (error) {
         console.error("Error discharging patient:", error);
-        res.status(500).json({ success: false, message: "Error discharging patient." });
+        res.status(500).send({ error: "Internal Server Error", success: false });
     }
 });
 
