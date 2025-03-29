@@ -417,44 +417,36 @@ app.post("/accept-patient", async (req, res) => {
 
 
 
-// Discharge Patient & Adjust Queue Times
-// Function to Adjust Queue Times on Discharge
-app.post("/discharge-patient", async (req, res) => {
+// This function adjusts the wait times based on the actual time spent with the doctor.
+app.post('/discharge-patient', async (req, res) => {
     const { patientID } = req.body;
-    try {
-        const patientRef = db.ref(`patients/${patientID}`);
-        const patientSnapshot = await patientRef.once("value");
-        const patient = patientSnapshot.val();
+    const patientRef = db.ref(`patients/${patientID}`);
+    const patientSnapshot = await patientRef.once('value');
+    const patient = patientSnapshot.val();
 
-        if (!patient) {
-            res.status(404).send({ error: "Patient not found", success: false });
-            return;
-        }
-
-        // Calculate the time difference
-        const acceptedTime = new Date(patient.acceptedTime).getTime();
-        const now = new Date().getTime();
-        const timeSpent = (now - acceptedTime) / 60000; // Convert milliseconds to minutes
-
-        // Adjust the wait times for other patients
-        const updates = {};
-        const allPatientsSnapshot = await db.ref("patients").orderByChild("condition").equalTo(patient.condition).once("value");
-        allPatientsSnapshot.forEach(snap => {
-            const p = snap.val();
-            if (p.id !== patientID && p.status === "Waiting") {
-                let newTime = (p.estimatedWaitTime || 0) + (timeSpent - (p.estimatedWaitTime || 0));
-                updates[snap.key] = { ...p, estimatedWaitTime: Math.max(0, newTime) };
-            }
-        });
-
-        await db.ref("patients").update(updates);
-        await patientRef.remove(); // Remove the discharged patient from the database
-
-        res.send({ success: true, message: "Patient discharged and queue updated." });
-    } catch (error) {
-        console.error("Error discharging patient:", error);
-        res.status(500).send({ error: "Internal Server Error", success: false });
+    if (!patient) {
+        return res.status(404).send({ error: "Patient not found" });
     }
+
+    const acceptedTime = new Date(patient.acceptedTime).getTime();
+    const now = Date.now();
+    const timeSpent = Math.floor((now - acceptedTime) / 60000); // minutes
+
+    const patientsRef = db.ref("patients");
+    const updates = {};
+
+    const patientsSnapshot = await patientsRef.once('value');
+    patientsSnapshot.forEach(snap => {
+        let p = snap.val();
+        if (p.condition === patient.condition && p.severity === patient.severity && snap.key !== patientID) {
+            let adjustedTime = Math.max(p.estimatedWaitTime - timeSpent, 0);
+            updates[snap.key + '/estimatedWaitTime'] = adjustedTime;
+        }
+    });
+
+    await patientsRef.update(updates);
+    await patientRef.remove();
+    res.send({ success: true });
 });
 
 
