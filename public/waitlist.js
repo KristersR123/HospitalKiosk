@@ -182,7 +182,7 @@ function updateDoctorReadyMessage(conditionKey, queueNumber) {
 }
 
 // Auto-refresh every 30 seconds
-setInterval(loadWaitlistRealTime, 30000);
+// setInterval(loadWaitlistRealTime, 30000);
 
 
 // Ensure this runs before `loadWaitlistRealTime`

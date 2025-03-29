@@ -53,7 +53,6 @@ async function monitorQueue() {
         const updates = {};
 
         // Build a mapping of active doctor sessions by condition & severity.
-        // Assumes one active doctor session per group.
         const doctorSessions = {};
         snapshot.forEach(childSnapshot => {
             const patient = childSnapshot.val();
@@ -72,30 +71,14 @@ async function monitorQueue() {
                 if (isNaN(triageTime)) return;
 
                 // Normal decrement (e.g., 1 minute per cycle)
-                const normalDecrement = 1;
-                let newWaitTime = Math.max(patient.estimatedWaitTime - normalDecrement, 0);
+                let newWaitTime = patient.estimatedWaitTime || 0;
+                newWaitTime = Math.max(newWaitTime - 1, 0); // Ensuring wait time does not go negative
 
-                // Check for an active doctor session in the same condition/severity group
-                const groupKey = `${patient.condition}-${patient.severity}`;
-                if (doctorSessions[groupKey]) {
-                    const doctorStart = doctorSessions[groupKey];
-                    const doctorElapsed = Math.floor((now - doctorStart) / 60000);
-                    let doctorAdjustment = 0;
-                    if (doctorElapsed <= 5) {
-                        doctorAdjustment = -5;
-                    } else if (doctorElapsed > 10) {
-                        doctorAdjustment = 5;
-                    }
-                    newWaitTime = Math.max(newWaitTime + doctorAdjustment, 0);
-                }
-
-                // If the new wait time reaches zero, update the status
+                // Adjustments based on doctor sessions are removed to prevent unintended reductions
                 if (newWaitTime <= 0 && patient.status.startsWith("Queueing for")) {
                     updates[`${patientID}/status`] = "Please See Doctor";
-                    newWaitTime = 0;
-                }
-
-                if (newWaitTime !== patient.estimatedWaitTime) {
+                    newWaitTime = 0; // Reset wait time to zero if it's time to see the doctor
+                } else if (newWaitTime !== patient.estimatedWaitTime) {
                     updates[`${patientID}/estimatedWaitTime`] = newWaitTime;
                 }
             }
