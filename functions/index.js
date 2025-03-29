@@ -17,26 +17,25 @@ exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientI
         if (!dischargedPatient || !dischargedPatient.acceptedTime) {
             return null;
         }
-        
-        const baseWaitTime = severityWaitTimes[dischargedPatient.severity] || 0;
+
         const acceptedTime = new Date(dischargedPatient.acceptedTime).getTime();
         const dischargeTime = Date.now();
         const timeSpent = Math.floor((dischargeTime - acceptedTime) / 60000);
-        const timeDifference = timeSpent - baseWaitTime;
-
-        // Adjust the time difference to never increase the wait times
-        const effectiveTimeAdjustment = timeDifference > 0 ? -Math.abs(timeDifference) : timeDifference;
+        const timeAdjustment = Math.max(timeSpent, 1); // Ensure at least 1 min adjustment
 
         const patientsRef = admin.database().ref('/patients');
         const updates = {};
         const patientsSnapshot = await patientsRef.once('value');
+
         patientsSnapshot.forEach((childSnapshot) => {
-            let patient = childSnapshot.val();
-            if (patient.status.startsWith("Queueing for") && 
-                patient.condition === dischargedPatient.condition && 
-                patient.severity === dischargedPatient.severity) {
-                let currentWaitTime = patient.estimatedWaitTime || 0;
-                let adjustedTime = currentWaitTime + effectiveTimeAdjustment;
+            const patient = childSnapshot.val();
+            if (
+                patient.status.startsWith("Queueing for") &&
+                patient.condition === dischargedPatient.condition &&
+                patient.severity === dischargedPatient.severity
+            ) {
+                const currentWaitTime = patient.estimatedWaitTime || 0;
+                const adjustedTime = currentWaitTime - timeAdjustment;
                 updates[childSnapshot.key + '/estimatedWaitTime'] = Math.max(0, adjustedTime);
             }
         });
