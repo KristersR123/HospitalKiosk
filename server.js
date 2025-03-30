@@ -391,42 +391,53 @@ app.post("/accept-patient", async (req, res) => {
 
 // This function adjusts the wait times based on the actual time spent with the doctor.
 app.post("/discharge-patient", async (req, res) => {
-    const { patientID } = req.body;
-    const patientRef = db.ref(`patients/${patientID}`);
-    const snapshot = await patientRef.once("value");
-    const patient = snapshot.val();
+    try {
+        const { patientID } = req.body;
 
-    if (!patient) {
-        return res.status(404).send({ error: "Patient not found" });
-    }
-
-    const acceptedTime = new Date(patient.acceptedTime).getTime();
-    const now = Date.now();
-    const timeSpent = Math.floor((now - acceptedTime) / 60000);
-
-    const baseWaitTime = severityWaitTimes[patient.severity] || 0;
-    const timeDifference = timeSpent - baseWaitTime;
-
-    const patientsSnapshot = await db.ref("patients").once("value");
-    const updates = {};
-
-    patientsSnapshot.forEach(snap => {
-        const p = snap.val();
-        if (
-            (p.status.startsWith("Queueing for") || p.status === "Please See Doctor") &&
-            p.condition === patient.condition &&
-            p.severity === patient.severity &&
-            snap.key !== patientID
-        ) {
-            const currentWaitTime = p.estimatedWaitTime || 0;
-            const adjustedTime = Math.max(currentWaitTime + timeDifference, 0);
-            updates[`${snap.key}/estimatedWaitTime`] = adjustedTime;
+        if (!patientID) {
+            return res.status(400).json({ error: "Missing patient ID" });
         }
-    });
 
-    await db.ref("patients").update(updates);
-    await patientRef.remove();
-    res.send({ success: true });
+        const patientRef = db.ref(`patients/${patientID}`);
+        const snapshot = await patientRef.once("value");
+        const patient = snapshot.val();
+
+        if (!patient) {
+            return res.status(404).send({ error: "Patient not found" });
+        }
+
+        const acceptedTime = new Date(patient.acceptedTime).getTime();
+        const now = Date.now();
+        const timeSpent = Math.floor((now - acceptedTime) / 60000);
+
+        const baseWaitTime = severityWaitTimes[patient.severity] || 0;
+        const timeDifference = timeSpent - baseWaitTime;
+
+        const patientsSnapshot = await db.ref("patients").once("value");
+        const updates = {};
+
+        patientsSnapshot.forEach(snap => {
+            const p = snap.val();
+            if (
+                (p.status.startsWith("Queueing for") || p.status === "Please See Doctor") &&
+                p.condition === patient.condition &&
+                p.severity === patient.severity &&
+                snap.key !== patientID
+            ) {
+                const currentWaitTime = p.estimatedWaitTime || 0;
+                const adjustedTime = Math.max(currentWaitTime + timeDifference, 0);
+                updates[`${snap.key}/estimatedWaitTime`] = adjustedTime;
+            }
+        });
+
+        await db.ref("patients").update(updates);
+        await patientRef.remove();
+        res.send({ success: true });
+
+    } catch (error) {
+        console.error("Error discharging patient:", error);
+        res.status(500).json({ error: "Internal server error", details: error.message });
+    }
 });
 
 
