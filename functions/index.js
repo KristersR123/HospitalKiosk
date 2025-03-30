@@ -10,7 +10,7 @@ const severityWaitTimes = {
     Green: 120,
     Blue: 240
   };
-  
+   
   exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientId}')
     .onDelete(async (snapshot, context) => {
       const dischargedPatient = snapshot.val();

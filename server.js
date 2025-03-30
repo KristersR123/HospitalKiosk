@@ -413,44 +413,16 @@ app.post('/discharge-patient', async (req, res) => {
 
     const acceptedTime = new Date(patient.acceptedTime).getTime();
     const now = Date.now();
-    const timeSpent = Math.floor((now - acceptedTime) / 60000); // in minutes
-
-    const baseWaitTime = severityWaitTimes[patient.severity] || 0;
-    const timeDifference = timeSpent - baseWaitTime;
+    const timeSpent = Math.floor((now - acceptedTime) / 60000); // minutes
 
     const patientsRef = db.ref("patients");
-    const patientsSnapshot = await patientsRef.once('value');
-
-    let doctorStillBusy = false;
-
-    patientsSnapshot.forEach(snap => {
-        const p = snap.val();
-        if (
-            p.status === "With Doctor" &&
-            p.condition === patient.condition &&
-            p.severity === patient.severity &&
-            snap.key !== patientID
-        ) {
-            doctorStillBusy = true;
-        }
-    });
-
-    if (doctorStillBusy) {
-        console.log("Another doctor is still with a patient. Skipping wait adjustment.");
-        await patientRef.remove(); // Still remove patient
-        return res.send({ success: true });
-    }
-
     const updates = {};
+
+    const patientsSnapshot = await patientsRef.once('value');
     patientsSnapshot.forEach(snap => {
-        const p = snap.val();
-        if (
-            (p.status.startsWith("Queueing for") || p.status === "Please See Doctor") &&
-            p.condition === patient.condition &&
-            p.severity === patient.severity &&
-            snap.key !== patientID
-        ) {
-            let adjustedTime = Math.max(p.estimatedWaitTime + timeDifference, 0);
+        let p = snap.val();
+        if (p.condition === patient.condition && p.severity === patient.severity && snap.key !== patientID) {
+            let adjustedTime = Math.max(p.estimatedWaitTime - timeSpent, 0);
             updates[snap.key + '/estimatedWaitTime'] = adjustedTime;
         }
     });

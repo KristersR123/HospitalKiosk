@@ -21,19 +21,18 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
         clearInterval(countdownIntervals[patientID]);
     }
 
-    let timeLeft = Math.ceil(initialTime * 60); // use ceil to avoid early cutoff
+    let timeLeft = Math.floor(initialTime) * 60; // in seconds
 
     countdownIntervals[patientID] = setInterval(() => {
-    if (timeLeft <= 0) {
-        countdownElement.innerHTML = "Please See Doctor";
-        clearInterval(countdownIntervals[patientID]);
-        delete countdownIntervals[patientID];
-        updateDoctorReadyMessage(conditionKey, queueNumber);
-        return;
-    }
-
-        let minutes = Math.ceil(timeLeft / 60); // stays intuitive, shows 1 until 0:59
-        countdownElement.innerHTML = `${minutes} min`;
+        if (timeLeft < 60) { // when less than 1 minute left
+            countdownElement.innerHTML = "Please See Doctor";
+            clearInterval(countdownIntervals[patientID]);
+            delete countdownIntervals[patientID];
+            updateDoctorReadyMessage(conditionKey, queueNumber);
+        } else {
+            let minutes = Math.ceil(timeLeft / 60); // ensure display is intuitive
+            countdownElement.innerHTML = `${minutes} min`;
+        }
         timeLeft--;
     }, 1000);
 }
