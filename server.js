@@ -398,12 +398,23 @@ app.post("/discharge-patient", async (req, res) => {
             return res.status(400).json({ error: "Missing patient ID" });
         }
 
-        const patientRef = db.ref(`patients/${patientID}`);
-        const snapshot = await patientRef.once("value");
-        const patient = snapshot.val();
+        // Search for the correct Firebase key using patientID
+        const patientsRef = db.ref("patients");
+        const snapshot = await patientsRef.once("value");
 
-        if (!patient) {
-            return res.status(404).send({ error: "Patient not found" });
+        let foundPatientKey = null;
+        let patient = null;
+
+        snapshot.forEach(child => {
+            const data = child.val();
+            if (data.patientID === patientID) {
+                foundPatientKey = child.key;
+                patient = data;
+            }
+        });
+
+        if (!foundPatientKey || !patient) {
+            return res.status(404).json({ error: "Patient not found" });
         }
 
         const acceptedTime = new Date(patient.acceptedTime).getTime();
@@ -413,27 +424,27 @@ app.post("/discharge-patient", async (req, res) => {
         const baseWaitTime = severityWaitTimes[patient.severity] || 0;
         const timeDifference = timeSpent - baseWaitTime;
 
-        const patientsSnapshot = await db.ref("patients").once("value");
         const updates = {};
-
-        patientsSnapshot.forEach(snap => {
+        snapshot.forEach(snap => {
             const p = snap.val();
+            const key = snap.key;
+
             if (
                 (p.status.startsWith("Queueing for") || p.status === "Please See Doctor") &&
                 p.condition === patient.condition &&
                 p.severity === patient.severity &&
-                snap.key !== patientID
+                key !== foundPatientKey
             ) {
                 const currentWaitTime = p.estimatedWaitTime || 0;
                 const adjustedTime = Math.max(currentWaitTime + timeDifference, 0);
-                updates[`${snap.key}/estimatedWaitTime`] = adjustedTime;
+                updates[`${key}/estimatedWaitTime`] = adjustedTime;
             }
         });
 
         await db.ref("patients").update(updates);
-        await patientRef.remove();
-        res.send({ success: true });
+        await db.ref(`patients/${foundPatientKey}`).remove();
 
+        res.send({ success: true });
     } catch (error) {
         console.error("Error discharging patient:", error);
         res.status(500).json({ error: "Internal server error", details: error.message });
