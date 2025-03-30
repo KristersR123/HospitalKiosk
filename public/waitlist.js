@@ -30,7 +30,9 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
             delete countdownIntervals[patientID];
             updateDoctorReadyMessage(conditionKey, queueNumber);
         } else {
-            let minutes = Math.floor(timeLeft / 60);
+            // let minutes = Math.floor(timeLeft / 60);
+            // countdownElement.innerHTML = `${minutes} min`;
+            let minutes = Math.ceil(timeLeft / 60); // show countdown more precisely
             countdownElement.innerHTML = `${minutes} min`;
         }
         timeLeft--;

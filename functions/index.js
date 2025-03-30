@@ -14,14 +14,13 @@ const severityWaitTimes = {
 exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientId}')
     .onDelete(async (snapshot, context) => {
         const dischargedPatient = snapshot.val();
-        if (!dischargedPatient || !dischargedPatient.acceptedTime) {
-            return null;
-        }
+        if (!dischargedPatient || !dischargedPatient.acceptedTime) return null;
 
+        const baseWaitTime = severityWaitTimes[dischargedPatient.severity] || 0;
         const acceptedTime = new Date(dischargedPatient.acceptedTime).getTime();
         const dischargeTime = Date.now();
         const timeSpent = Math.floor((dischargeTime - acceptedTime) / 60000);
-        const timeAdjustment = Math.max(timeSpent, 1); // Ensure at least 1 min adjustment
+        const timeDifference = timeSpent - baseWaitTime;
 
         const patientsRef = admin.database().ref('/patients');
         const updates = {};
@@ -35,8 +34,11 @@ exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientI
                 patient.severity === dischargedPatient.severity
             ) {
                 const currentWaitTime = patient.estimatedWaitTime || 0;
-                const adjustedTime = currentWaitTime - timeAdjustment;
-                updates[childSnapshot.key + '/estimatedWaitTime'] = Math.max(0, adjustedTime);
+
+                // ✅ If doctor was faster, subtract; if slower, add
+                const adjustedTime = currentWaitTime - timeDifference;
+
+                updates[`${childSnapshot.key}/estimatedWaitTime`] = Math.max(0, adjustedTime);
             }
         });
 
