@@ -21,7 +21,7 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
         clearInterval(countdownIntervals[patientID]);
     }
 
-    let timeLeft = Math.floor(initialTime) * 60; // Convert minutes to seconds
+    let timeLeft = Math.floor(initialTime) * 60; // seconds
 
     countdownIntervals[patientID] = setInterval(() => {
         if (timeLeft <= 0) {
@@ -30,9 +30,7 @@ function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
             delete countdownIntervals[patientID];
             updateDoctorReadyMessage(conditionKey, queueNumber);
         } else {
-            // let minutes = Math.floor(timeLeft / 60);
-            // countdownElement.innerHTML = `${minutes} min`;
-            let minutes = Math.ceil(timeLeft / 60); // show countdown more precisely
+            let minutes = Math.floor(timeLeft / 60); // ← changed from Math.ceil
             countdownElement.innerHTML = `${minutes} min`;
         }
         timeLeft--;

@@ -31,9 +31,9 @@ const severityWaitTimes = {
         const patient = childSnapshot.val();
   
         if (
-          patient.status.startsWith("Queueing for") &&
-          patient.condition === dischargedPatient.condition &&
-          patient.severity === dischargedPatient.severity
+            (patient.status.startsWith("Queueing for") || patient.status === "Please See Doctor") &&
+            patient.condition === dischargedPatient.condition &&
+            patient.severity === dischargedPatient.severity
         ) {
           const currentWaitTime = patient.estimatedWaitTime || 0;
   
