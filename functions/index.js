@@ -36,7 +36,7 @@ exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientI
                 const currentWaitTime = patient.estimatedWaitTime || 0;
 
                 // ✅ If doctor was faster, subtract; if slower, add
-                const adjustedTime = currentWaitTime - timeDifference;
+                const adjustedTime = currentWaitTime + timeDifference;
 
                 updates[`${childSnapshot.key}/estimatedWaitTime`] = Math.max(0, adjustedTime);
             }
