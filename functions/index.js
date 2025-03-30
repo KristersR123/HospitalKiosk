@@ -19,8 +19,15 @@ exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientI
       const baseWaitTime = severityWaitTimes[dischargedPatient.severity] || 0;
       const acceptedTime = new Date(dischargedPatient.acceptedTime).getTime();
       const dischargeTime = Date.now();
-      const timeSpent = Math.floor((dischargeTime - acceptedTime) / 60000); // ⏱ Actual time with doctor
-      const timeAdjustment = baseWaitTime - timeSpent; // ⛑️ Compare to expected
+      const timeSpent = Math.floor((dischargeTime - acceptedTime) / 60000);
+
+      // Calculate adjustment based on whether doctor was fast or slow
+      let adjustment = 0;
+      if (timeSpent < baseWaitTime) {
+          adjustment = baseWaitTime - timeSpent; // Reduce others' time
+      } else if (timeSpent > baseWaitTime) {
+          adjustment = -(timeSpent - baseWaitTime); // Increase others' time
+      }
 
       const patientsRef = admin.database().ref('/patients');
       const updates = {};
@@ -34,7 +41,7 @@ exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientI
               patient.severity === dischargedPatient.severity
           ) {
               const currentWaitTime = patient.estimatedWaitTime || 0;
-              const adjustedTime = currentWaitTime - timeAdjustment;
+              const adjustedTime = currentWaitTime - adjustment;
               updates[`${childSnapshot.key}/estimatedWaitTime`] = Math.max(0, adjustedTime);
           }
       });
