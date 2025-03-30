@@ -16,9 +16,11 @@ exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientI
       const dischargedPatient = snapshot.val();
       if (!dischargedPatient || !dischargedPatient.acceptedTime) return null;
 
+      const baseWaitTime = severityWaitTimes[dischargedPatient.severity] || 0;
       const acceptedTime = new Date(dischargedPatient.acceptedTime).getTime();
       const dischargeTime = Date.now();
       const timeSpent = Math.floor((dischargeTime - acceptedTime) / 60000); // ⏱ Actual time with doctor
+      const timeAdjustment = baseWaitTime - timeSpent; // ⛑️ Compare to expected
 
       const patientsRef = admin.database().ref('/patients');
       const updates = {};
@@ -32,7 +34,7 @@ exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientI
               patient.severity === dischargedPatient.severity
           ) {
               const currentWaitTime = patient.estimatedWaitTime || 0;
-              const adjustedTime = currentWaitTime - timeSpent;
+              const adjustedTime = currentWaitTime - timeAdjustment;
               updates[`${childSnapshot.key}/estimatedWaitTime`] = Math.max(0, adjustedTime);
           }
       });
