@@ -355,18 +355,21 @@ app.post("/check-in", async (req, res) => {
 // API: Accept Patient
 app.post("/accept-patient", async (req, res) => {
     try {
-        const { patientID } = req.body;
+        const patientsRef = db.ref("patients");
+        const snapshot = await patientsRef.once("value");
 
-        if (!patientID) {
-            return res.status(400).json({ error: "Missing patient ID" });
-        }
+        let foundPatientKey = null;
+        snapshot.forEach(child => {
+            if (child.val().patientID === patientID) {
+                foundPatientKey = child.key;
+            }
+        });
 
-        const patientRef = db.ref(`patients/${patientID}`);
-        const snapshot = await patientRef.once("value");
-
-        if (!snapshot.exists()) {
+        if (!foundPatientKey) {
             return res.status(404).json({ error: "Patient not found" });
         }
+
+        const patientRef = db.ref(`patients/${foundPatientKey}`);
 
         await patientRef.update({
             status: "With Doctor",
