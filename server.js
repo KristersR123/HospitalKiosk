@@ -355,6 +355,11 @@ app.post("/check-in", async (req, res) => {
 // API: Accept Patient
 app.post("/accept-patient", async (req, res) => {
     try {
+        const { patientID } = req.body;
+        if (!patientID) {
+            return res.status(400).json({ error: "Missing patient ID" });
+        }
+
         const patientsRef = db.ref("patients");
         const snapshot = await patientsRef.once("value");
 
@@ -373,7 +378,7 @@ app.post("/accept-patient", async (req, res) => {
 
         await patientRef.update({
             status: "With Doctor",
-            acceptedTime: new Date().toISOString() // Store time when doctor accepts patient
+            acceptedTime: new Date().toISOString()
         });
 
         res.json({ success: true, message: `Patient ${patientID} accepted.` });
@@ -382,7 +387,6 @@ app.post("/accept-patient", async (req, res) => {
         res.status(500).json({ success: false, message: "Error accepting patient." });
     }
 });
-
 
 
 // This function adjusts the wait times based on the actual time spent with the doctor.
@@ -425,9 +429,6 @@ app.post("/discharge-patient", async (req, res) => {
     res.send({ success: true });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-});
 
 
 
