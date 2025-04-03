@@ -196,32 +196,39 @@ app.post("/assign-severity", async (req, res) => {
 });
 
 // 4) Accept Patient (Doctor picks from queue)
+// API: Accept Patient
 app.post("/accept-patient", async (req, res) => {
   try {
-    const { patientID } = req.body;
-    if (!patientID) {
-      return res.status(400).json({ error: "Missing patient ID" });
-    }
-
-    // Find in DB
-    const snap = await patientsRef.once("value");
-    let foundKey = null;
-    snap.forEach(child => {
-      if (child.val().patientID === patientID) {
-        foundKey = child.key;
+      const { patientID } = req.body;
+      if (!patientID) {
+          return res.status(400).json({ error: "Missing patient ID" });
       }
-    });
-    if (!foundKey) return res.status(404).json({ error: "Patient not found" });
 
-    // Mark with "With Doctor" + acceptedTime
-    await db.ref(`patients/${foundKey}`).update({
-      status: "With Doctor",
-      acceptedTime: new Date().toISOString()
-    });
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Error accepting patient:", err);
-    res.status(500).json({ error: "Error accepting patient" });
+      const patientsRef = db.ref("patients");
+      const snapshot = await patientsRef.once("value");
+
+      let foundPatientKey = null;
+      snapshot.forEach(child => {
+          if (child.val().patientID === patientID) {
+              foundPatientKey = child.key;
+          }
+      });
+
+      if (!foundPatientKey) {
+          return res.status(404).json({ error: "Patient not found" });
+      }
+
+      const patientRef = db.ref(`patients/${foundPatientKey}`);
+
+      await patientRef.update({
+          status: "With Doctor",
+          acceptedTime: new Date().toISOString()
+      });
+
+      res.json({ success: true, message: `Patient ${patientID} accepted.` });
+  } catch (error) {
+      console.error("Error accepting patient:", error);
+      res.status(500).json({ success: false, message: "Error accepting patient." });
   }
 });
 
