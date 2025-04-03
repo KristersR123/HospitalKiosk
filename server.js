@@ -291,5 +291,30 @@ app.get("/doctor-queue", async (req, res) => {
   }
 });
 
+// GET /patients-awaiting-triage
+app.get("/patients-awaiting-triage", async (req, res) => {
+  try {
+    const snapshot = await db
+      .ref("patients")
+      .orderByChild("status")
+      .equalTo("Waiting for Triage")
+      .once("value");
+
+    if (!snapshot.exists()) {
+      return res.json([]);
+    }
+
+    const patients = [];
+    snapshot.forEach((childSnapshot) => {
+      patients.push({ id: childSnapshot.key, ...childSnapshot.val() });
+    });
+
+    res.json(patients);
+  } catch (error) {
+    console.error("Error fetching triage patients:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Start
 app.listen(PORT, () => console.log(`Express server running on port ${PORT}`));
