@@ -44,36 +44,39 @@ const severityWaitTimes = {
 
 
 async function monitorQueue() {
-    try {
-        const snapshot = await db.ref("patients").once("value");
-        if (!snapshot.exists()) return;
+  try {
+    const snap = await patientsRef.once("value");
+    if (!snap.exists()) return;
 
-        const updates = {};
-        snapshot.forEach(childSnapshot => {
-            const patient = childSnapshot.val();
-            const patientID = childSnapshot.key;
+    const updates = {};
+    snap.forEach(child => {
+      const patient = child.val();
+      const key = child.key;
 
-            if (patient.status.startsWith("Queueing for") && patient.triageTime) {
-                let newWaitTime = patient.estimatedWaitTime || 0;
-                newWaitTime = Math.max(newWaitTime - 1, 0);
-
-                if (newWaitTime <= 0) {
-                    updates[`${patientID}/status`] = "Please See Doctor";
-                    newWaitTime = 0;
-                } else if (newWaitTime !== patient.estimatedWaitTime) {
-                    updates[`${patientID}/estimatedWaitTime`] = newWaitTime;
-                }
-            }
-        });
-
-        if (Object.keys(updates).length > 0) {
-            await db.ref("patients").update(updates);
-            console.log("Queue times updated.");
+      // Only decrement if "Queueing for X" and we have a triageTime
+      if (patient.status?.startsWith("Queueing for") && patient.triageTime) {
+        let newWaitTime = Math.max((patient.estimatedWaitTime || 0) - 1, 0);
+        if (newWaitTime <= 0) {
+          // Move them to "Please See Doctor"
+          updates[`${key}/status`] = "Please See Doctor";
+          newWaitTime = 0;
         }
-    } catch (error) {
-        console.error("Error in monitorQueue:", error);
+        if (newWaitTime !== patient.estimatedWaitTime) {
+          updates[`${key}/estimatedWaitTime`] = newWaitTime;
+        }
+      }
+    });
+
+    if (Object.keys(updates).length > 0) {
+      await patientsRef.update(updates);
+      console.log("⏱ Queue times updated by monitorQueue");
     }
+  } catch (err) {
+    console.error("monitorQueue Error:", err);
+  }
 }
+// Run monitorQueue every 60s
+setInterval(monitorQueue, 60000);
 
 async function checkFirebaseWaitTimes() {
     try {
