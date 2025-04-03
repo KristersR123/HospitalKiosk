@@ -354,6 +354,13 @@ app.post("/check-in", async (req, res) => {
 
 // API: Accept Patient
 app.post("/accept-patient", async (req, res) => {
+    console.log('Request body:', req.body);
+  try {
+    // your logic
+  } catch (error) {
+    console.error('Error accepting patient:', error);
+    res.status(500).json({ success: false, message: "Error accepting patient." });
+  }
     try {
         const { patientID } = req.body;
         if (!patientID) {

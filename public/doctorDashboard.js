@@ -47,15 +47,21 @@ function loadDoctorQueue() {
 
 // Function to Accept a Patient
 function acceptPatient(patientID) {
-    event.preventDefault(); // Prevent default action (form submission, page refresh)
+    console.log('Attempting to accept patient', patientID);
     
     fetch(`${RENDER_API_URL}/accept-patient`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+            "Content-Type": "application/json"
+        },
         body: JSON.stringify({ patientID })
     })
-    .then(response => response.json())
-    .then(() => {
+    .then(response => {
+        console.log('Response from server:', response);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Data received:', data);
         alert(`Patient ${patientID} has been accepted by the doctor.`);
         
         document.getElementById(`status-${patientID}`).innerText = "Being Seen";
