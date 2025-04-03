@@ -1,153 +1,133 @@
-/******************************************************
- * waitlist.js
- * 
- * PURPOSE:
- *  - Show a real-time view of all patients in "Queueing for ..."
- *    or "Please See Doctor" status.
- *  - Listen to Firebase changes and automatically update the UI.
- *  - Run local countdown timers for each patient until 0 => 
- *    "Please See Doctor" (or rely on server logic).
- ******************************************************/
-
-// waitlist.js
-// Real-time display of patients by condition+severity, countdown to "Please See Doctor"
-
 const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
+const waitlistContainer = document.getElementById("waitlist-container");
+const firebaseApp = firebase.initializeApp({ databaseURL: "https://hospitalkiosk-a92a4-default-rtdb.europe-west1.firebasedatabase.app" });
+const db = firebaseApp.database();
 
-// If using direct Firebase calls, you can do so. 
-// Otherwise, we can just poll the /waitlist endpoint every X seconds.
+const severityWaitTimes = {
+    "Red": 0,
+    "Orange": 10,
+    "Yellow": 60,
+    "Green": 120,
+    "Blue": 240
+};
 
-let countdownIntervals = {};
-
-function loadWaitlist() {
-  fetch(`${RENDER_API_URL}/waitlist`)
-    .then(r => r.json())
-    .then(patients => {
-      renderWaitlist(patients);
-    })
-    .catch(err => console.error("Error loading waitlist:", err));
-}
-
-function renderWaitlist(patients) {
-  const container = document.getElementById("waitlist-container");
-  container.innerHTML = "";
-
-  // Clear old countdowns
-  Object.keys(countdownIntervals).forEach(pid => clearInterval(countdownIntervals[pid]));
-  countdownIntervals = {};
-
-  if (!patients || patients.length === 0) {
-    container.innerHTML = "<p>No patients in the waitlist.</p>";
-    return;
-  }
-
-  // Group by "condition-severity"
-  const groups = {};
-  let firstPatient = null;
-
-  patients.forEach(p => {
-    if (!p.status || p.status === "With Doctor") return; // skip
-    const key = `${p.condition}-${p.severity}`;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(p);
-    // Track first "Please See Doctor"
-    if (
-      p.status === "Please See Doctor" && 
-      (!firstPatient || p.queueNumber < firstPatient.queueNumber)
-    ) {
-      firstPatient = p;
-    }
-  });
-
-  Object.keys(groups).forEach(groupKey => {
-    const [condition, severity] = groupKey.split("-");
-    const sortedQueue = groups[groupKey].sort((a, b) => a.queueNumber - b.queueNumber);
-
-    const section = document.createElement("div");
-    section.classList.add("condition-section");
-    section.setAttribute("data-condition", groupKey);
-    section.innerHTML = `
-      <div class="condition-title">
-        ${condition} - <span class="${severity.toLowerCase()}">${severity} Severity</span>
-      </div>
-    `;
-
-    const list = document.createElement("ul");
-    list.classList.add("patient-list");
-
-    sortedQueue.forEach(p => {
-      const li = document.createElement("li");
-      li.classList.add("patient-item");
-      li.id = `queue-${p.patientID}`;
-      const waitTime = p.estimatedWaitTime || 0;
-
-      li.innerHTML = `
-        <div class="queue-patient">
-          Queue Position: <span class="queue-pos">#${p.queueNumber}</span><br>
-          Estimated Wait Time:
-          <span id="countdown-${p.patientID}" class="countdown">${Math.floor(waitTime)} min</span>
-        </div>
-      `;
-      list.appendChild(li);
-      startCountdown(p.patientID, waitTime, groupKey, p.queueNumber);
-    });
-
-    section.appendChild(list);
-    container.appendChild(section);
-  });
-
-  // Show "Doctor is Ready" for that first "Please See Doctor" if any
-  if (firstPatient) {
-    updateDoctorReadyMessage(
-      `${firstPatient.condition}-${firstPatient.severity}`, 
-      firstPatient.queueNumber
-    );
-  }
-}
+let countdownIntervals = {}; // Track active countdowns
 
 function startCountdown(patientID, initialTime, conditionKey, queueNumber) {
-  const countdownEl = document.getElementById(`countdown-${patientID}`);
-  if (!countdownEl) return;
+    let countdownElement = document.getElementById(`countdown-${patientID}`);
+    if (!countdownElement) return;
 
-  if (countdownIntervals[patientID]) clearInterval(countdownIntervals[patientID]);
-
-  let timeLeft = Math.floor(initialTime) * 60;
-  countdownIntervals[patientID] = setInterval(() => {
-    if (timeLeft <= 0) {
-      countdownEl.innerHTML = "Please See Doctor";
-      clearInterval(countdownIntervals[patientID]);
-      delete countdownIntervals[patientID];
-      updateDoctorReadyMessage(conditionKey, queueNumber);
-    } else {
-      const minutes = Math.floor(timeLeft / 60);
-      countdownEl.innerHTML = `${minutes} min`;
+    if (countdownIntervals[patientID]) {
+        clearInterval(countdownIntervals[patientID]);
     }
-    timeLeft--;
-  }, 1000);
+
+    let timeLeft = Math.floor(initialTime) * 60; // in seconds
+
+    countdownIntervals[patientID] = setInterval(() => {
+        if (timeLeft < 60) { // when less than 1 minute left
+            countdownElement.innerHTML = "Please See Doctor";
+            clearInterval(countdownIntervals[patientID]);
+            delete countdownIntervals[patientID];
+            updateDoctorReadyMessage(conditionKey, queueNumber);
+        } else {
+            let minutes = Math.ceil(timeLeft / 60); // ensure display is intuitive
+            countdownElement.innerHTML = `${minutes} min`;
+        }
+        timeLeft--;
+    }, 1000);
 }
 
 function updateDoctorReadyMessage(conditionKey, queueNumber) {
-  const section = document.querySelector(`[data-condition="${conditionKey}"]`);
-  if (!section) return;
+    let conditionSection = document.querySelector(`[data-condition="${conditionKey}"]`);
+    if (!conditionSection) return;
 
-  let doctorReadyDiv = section.querySelector(".doctor-ready");
-  if (!doctorReadyDiv) {
-    doctorReadyDiv = document.createElement("div");
-    doctorReadyDiv.classList.add("doctor-ready");
-    doctorReadyDiv.style.fontWeight = "bold";
-    doctorReadyDiv.style.color = "#28a745";
-    doctorReadyDiv.style.marginTop = "10px";
-    doctorReadyDiv.style.fontSize = "18px";
-    doctorReadyDiv.style.padding = "10px";
-    section.appendChild(doctorReadyDiv);
-  }
-  doctorReadyDiv.innerHTML = `Patient #${queueNumber} - Doctor is Ready for You`;
+    let doctorReadyDiv = conditionSection.querySelector(".doctor-ready");
+    if (!doctorReadyDiv) {
+        doctorReadyDiv = document.createElement("div");
+        doctorReadyDiv.classList.add("doctor-ready");
+        doctorReadyDiv.style.fontWeight = "bold";
+        doctorReadyDiv.style.color = "#28a745";
+        doctorReadyDiv.style.marginTop = "10px";
+        doctorReadyDiv.style.fontSize = "18px";
+        doctorReadyDiv.style.padding = "10px";
+        conditionSection.appendChild(doctorReadyDiv);
+    }
+    doctorReadyDiv.innerHTML = `Patient #${queueNumber} - Doctor is Ready for You`;
 }
 
-function pollWaitlist() {
-  loadWaitlist();
+function renderWaitlist(patients) {
+    waitlistContainer.innerHTML = "";
+    let conditionGroups = {};
+    Object.keys(countdownIntervals).forEach(patientID => {
+        clearInterval(countdownIntervals[patientID]);
+        delete countdownIntervals[patientID];
+    });
+
+    let firstPatientInQueue = null;
+
+    patients.forEach(patient => {
+        if (!patient || !patient.status || patient.status === "With Doctor") return;
+        let key = `${patient.condition}-${patient.severity}`;
+        if (!conditionGroups[key]) conditionGroups[key] = [];
+        conditionGroups[key].push(patient);
+        if (patient.status === "Please See Doctor" && (!firstPatientInQueue || patient.queueNumber < firstPatientInQueue.queueNumber)) {
+            firstPatientInQueue = patient;
+        }
+    });
+
+    Object.keys(conditionGroups).forEach(groupKey => {
+        let [condition, severity] = groupKey.split("-");
+        let sortedQueue = conditionGroups[groupKey].sort((a, b) => a.queueNumber - b.queueNumber);
+        let conditionSection = document.createElement("div");
+        conditionSection.classList.add("condition-section");
+        conditionSection.setAttribute("data-condition", groupKey);
+        conditionSection.innerHTML = `
+            <div class="condition-title">${condition} - 
+                <span class="${severity.toLowerCase()}">${severity} Severity</span>
+            </div>
+        `;
+
+        let queueList = document.createElement("ul");
+        queueList.classList.add("patient-list");
+
+        sortedQueue.forEach(patient => {
+            let fixedQueueNumber = patient.queueNumber;
+            let listItem = document.createElement("li");
+            listItem.classList.add("patient-item");
+            listItem.id = `queue-${patient.patientID}`;
+            let remainingWaitTime = patient.estimatedWaitTime !== undefined 
+                ? patient.estimatedWaitTime 
+                : severityWaitTimes[patient.severity] || 60;
+            listItem.innerHTML = `
+                <div class="queue-patient">
+                    Queue Position: <span class="queue-pos">#${fixedQueueNumber}</span><br>
+                    Estimated Wait Time: <span id="countdown-${patient.patientID}" class="countdown">${Math.floor(remainingWaitTime)} min</span>
+                </div>
+            `;
+            queueList.appendChild(listItem);
+            startCountdown(patient.patientID, remainingWaitTime, groupKey, fixedQueueNumber);
+        });
+
+        conditionSection.appendChild(queueList);
+        waitlistContainer.appendChild(conditionSection);
+    });
+
+    if (firstPatientInQueue) {
+        updateDoctorReadyMessage(`${firstPatientInQueue.condition}-${firstPatientInQueue.severity}`, firstPatientInQueue.queueNumber);
+    }
 }
 
-// Optionally poll every 30s or do a real-time DB approach
-setInterval(pollWaitlist, 30000);
-document.addEventListener("DOMContentLoaded", pollWaitlist);
+function setupRealtimeListener() {
+    const patientsRef = db.ref("patients");
+    patientsRef.on("value", snapshot => {
+        if (!snapshot.exists()) {
+            waitlistContainer.innerHTML = "<p>No patients in the waitlist.</p>";
+            return;
+        }
+        const data = snapshot.val();
+        const patients = Object.keys(data).map(key => data[key]);
+        renderWaitlist(patients);
+    });
+}
+
+document.addEventListener("DOMContentLoaded", setupRealtimeListener);
