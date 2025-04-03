@@ -351,50 +351,39 @@ app.post("/check-in", async (req, res) => {
     }
 });
 
-
-// API: Accept Patient
 app.post("/accept-patient", async (req, res) => {
-    console.log('Request body:', req.body);
-  try {
-    // your logic
-  } catch (error) {
-    console.error('Error accepting patient:', error);
-    res.status(500).json({ success: false, message: "Error accepting patient." });
-  }
     try {
         const { patientID } = req.body;
         if (!patientID) {
             return res.status(400).json({ error: "Missing patient ID" });
         }
-
+ 
         const patientsRef = db.ref("patients");
         const snapshot = await patientsRef.once("value");
-
+ 
         let foundPatientKey = null;
         snapshot.forEach(child => {
             if (child.val().patientID === patientID) {
                 foundPatientKey = child.key;
             }
         });
-
+ 
         if (!foundPatientKey) {
             return res.status(404).json({ error: "Patient not found" });
         }
-
+ 
         const patientRef = db.ref(`patients/${foundPatientKey}`);
-
         await patientRef.update({
             status: "With Doctor",
             acceptedTime: new Date().toISOString()
         });
-
+ 
         res.json({ success: true, message: `Patient ${patientID} accepted.` });
     } catch (error) {
         console.error("Error accepting patient:", error);
         res.status(500).json({ success: false, message: "Error accepting patient." });
     }
-});
-
+ });
 
 // This function adjusts the wait times based on the actual time spent with the doctor.
 app.post("/discharge-patient", async (req, res) => {
