@@ -19,12 +19,12 @@ app.use(cors()); // Allow frontend requests
 const PORT = process.env.PORT || 5000;
 
 const corsOptions = {
-    origin: "https://hospitalkiosk-a92a4.web.app", // Allow all origins (change this in production)
-    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-    allowedHeaders: ["Content-Type"]
+    origin: "*", // Temporarily allow all origins.
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],  
+    allowedHeaders: ["Content-Type"], // Allow the necessary headers
 };
 
-app.use(cors(corsOptions));
+app.use(cors(corsOptions)); // Apply CORS settings
 
 const patientsRef = db.ref("patients");
 
