@@ -49,7 +49,7 @@ function loadDoctorQueue() {
 function acceptPatient(patientID) {
     console.log('Attempting to accept patient', patientID);
     
-    fetch(`${RENDER_API_URL}/accept-patient`, {
+    fetch('https://hospitalkiosk.onrender.com/accept-patient', {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
