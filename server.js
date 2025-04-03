@@ -353,7 +353,7 @@ app.post("/check-in", async (req, res) => {
 
 
 // API: Accept Patient
-app.post("/accept-patient", async (req, res) => {
+app.post("/acceptpatient", async (req, res) => {
     try {
         const { patientID } = req.body;
         if (!patientID) {
