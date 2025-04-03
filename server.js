@@ -75,8 +75,6 @@ async function monitorQueue() {
     console.error("monitorQueue Error:", err);
   }
 }
-// Run monitorQueue every 60s
-setInterval(monitorQueue, 60000);
 
 async function checkFirebaseWaitTimes() {
     try {
@@ -581,3 +579,4 @@ app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 
 });
+
