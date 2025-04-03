@@ -47,7 +47,7 @@ function loadDoctorQueue() {
 
 // Function to Accept a Patient
 function acceptPatient(patientID) {
-    fetch(`${RENDER_API_URL}/acceptpatient`, {
+    fetch(`${RENDER_API_URL}/accept-patient`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ patientID })
