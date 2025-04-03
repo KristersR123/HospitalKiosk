@@ -44,36 +44,35 @@ const severityWaitTimes = {
 
 
 async function monitorQueue() {
-  try {
-    const snap = await patientsRef.once("value");
-    if (!snap.exists()) return;
+    try {
+        const snapshot = await db.ref("patients").once("value");
+        if (!snapshot.exists()) return;
 
-    const updates = {};
-    snap.forEach(child => {
-      const patient = child.val();
-      const key = child.key;
+        const updates = {};
+        snapshot.forEach(childSnapshot => {
+            const patient = childSnapshot.val();
+            const patientID = childSnapshot.key;
 
-      // Only decrement if "Queueing for X" and we have a triageTime
-      if (patient.status?.startsWith("Queueing for") && patient.triageTime) {
-        let newWaitTime = Math.max((patient.estimatedWaitTime || 0) - 1, 0);
-        if (newWaitTime <= 0) {
-          // Move them to "Please See Doctor"
-          updates[`${key}/status`] = "Please See Doctor";
-          newWaitTime = 0;
+            if (patient.status.startsWith("Queueing for") && patient.triageTime) {
+                let newWaitTime = patient.estimatedWaitTime || 0;
+                newWaitTime = Math.max(newWaitTime - 1, 0);
+
+                if (newWaitTime <= 0) {
+                    updates[`${patientID}/status`] = "Please See Doctor";
+                    newWaitTime = 0;
+                } else if (newWaitTime !== patient.estimatedWaitTime) {
+                    updates[`${patientID}/estimatedWaitTime`] = newWaitTime;
+                }
+            }
+        });
+
+        if (Object.keys(updates).length > 0) {
+            await db.ref("patients").update(updates);
+            console.log("Queue times updated.");
         }
-        if (newWaitTime !== patient.estimatedWaitTime) {
-          updates[`${key}/estimatedWaitTime`] = newWaitTime;
-        }
-      }
-    });
-
-    if (Object.keys(updates).length > 0) {
-      await patientsRef.update(updates);
-      console.log("⏱ Queue times updated by monitorQueue");
+    } catch (error) {
+        console.error("Error in monitorQueue:", error);
     }
-  } catch (err) {
-    console.error("monitorQueue Error:", err);
-  }
 }
 
 async function checkFirebaseWaitTimes() {
@@ -399,23 +398,12 @@ app.post("/discharge-patient", async (req, res) => {
             return res.status(400).json({ error: "Missing patient ID" });
         }
 
-        // Search for the correct Firebase key using patientID
-        const patientsRef = db.ref("patients");
-        const snapshot = await patientsRef.once("value");
+        const patientRef = db.ref(`patients/${patientID}`);
+        const snapshot = await patientRef.once("value");
+        const patient = snapshot.val();
 
-        let foundPatientKey = null;
-        let patient = null;
-
-        snapshot.forEach(child => {
-            const data = child.val();
-            if (data.patientID === patientID) {
-                foundPatientKey = child.key;
-                patient = data;
-            }
-        });
-
-        if (!foundPatientKey || !patient) {
-            return res.status(404).json({ error: "Patient not found" });
+        if (!patient) {
+            return res.status(404).send({ error: "Patient not found" });
         }
 
         const acceptedTime = new Date(patient.acceptedTime).getTime();
@@ -425,27 +413,27 @@ app.post("/discharge-patient", async (req, res) => {
         const baseWaitTime = severityWaitTimes[patient.severity] || 0;
         const timeDifference = timeSpent - baseWaitTime;
 
+        const patientsSnapshot = await db.ref("patients").once("value");
         const updates = {};
-        snapshot.forEach(snap => {
-            const p = snap.val();
-            const key = snap.key;
 
+        patientsSnapshot.forEach(snap => {
+            const p = snap.val();
             if (
                 (p.status.startsWith("Queueing for") || p.status === "Please See Doctor") &&
                 p.condition === patient.condition &&
                 p.severity === patient.severity &&
-                key !== foundPatientKey
+                snap.key !== patientID
             ) {
                 const currentWaitTime = p.estimatedWaitTime || 0;
                 const adjustedTime = Math.max(currentWaitTime + timeDifference, 0);
-                updates[`${key}/estimatedWaitTime`] = adjustedTime;
+                updates[`${snap.key}/estimatedWaitTime`] = adjustedTime;
             }
         });
 
         await db.ref("patients").update(updates);
-        await db.ref(`patients/${foundPatientKey}`).remove();
-
+        await patientRef.remove();
         res.send({ success: true });
+
     } catch (error) {
         console.error("Error discharging patient:", error);
         res.status(500).json({ error: "Internal server error", details: error.message });
@@ -579,4 +567,3 @@ app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 
 });
-
