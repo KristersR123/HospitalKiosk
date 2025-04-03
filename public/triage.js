@@ -1,85 +1,78 @@
+// triage.js
+// Shows all patients "Waiting for Triage", and sets severity
+
 const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
 const patientList = document.getElementById("patient-list");
-// Function to Load Patients for Triage
-function loadTriagePatientsRealTime() {
-    fetch(`${RENDER_API_URL}/patients-awaiting-triage`)
-    .then(response => response.json())
+
+function loadTriagePatients() {
+  fetch(`${RENDER_API_URL}/patients-awaiting-triage`)
+    .then(r => r.json())
     .then(patients => {
-        updatePatientList(patients);
+      renderTriageList(patients);
     })
-    .catch(error => {
-        console.error("❌ Error loading triage patients:", error);
-        patientList.innerHTML = `<tr><td colspan="5">Failed to load patients. Please try refreshing.</td></tr>`;
+    .catch(err => {
+      console.error("Error loading triage patients:", err);
+      patientList.innerHTML = `<tr><td colspan="5">Failed to load. Refresh?</td></tr>`;
     });
 }
 
-function updatePatientList(patients) {
-    patientList.innerHTML = ""; // Clear the table before appending
-
-    if (!patients || patients.length === 0) {
-        patientList.innerHTML = `<tr><td colspan="5">No patients awaiting triage.</td></tr>`;
-        return;
-    }
-
-    patients.forEach(patient => {
-        const row = createPatientRow(patient);
-        patientList.appendChild(row);
-    });
-}
-
-function createPatientRow(patient) {
-    let row = document.createElement("tr");
+function renderTriageList(patients) {
+  patientList.innerHTML = "";
+  if (!patients || patients.length === 0) {
+    patientList.innerHTML = `<tr><td colspan="5">No patients awaiting triage.</td></tr>`;
+    return;
+  }
+  patients.forEach(p => {
+    const row = document.createElement("tr");
     row.innerHTML = `
-        <td>${patient.patientID}</td>
-        <td>${patient.fullName}</td>
-        <td>${patient.condition || "Not Assigned"}</td>
-        <td>
-            <select id="severity-${patient.patientID}">
-                <option value="">Select Severity</option>
-                <option value="Red">Red (Immediate)</option>
-                <option value="Orange">Orange (Very Urgent)</option>
-                <option value="Yellow">Yellow (Urgent)</option>
-                <option value="Green">Green (Standard)</option>
-                <option value="Blue">Blue (Non-Urgent)</option>
-            </select>
-        </td>
-        <td>
-            <button onclick="assignSeverity('${patient.patientID}')">Confirm</button>
-        </td>
+      <td>${p.patientID}</td>
+      <td>${p.fullName}</td>
+      <td>${p.condition || "Not Assigned"}</td>
+      <td>
+        <select id="severity-${p.patientID}">
+          <option value="">Select Severity</option>
+          <option value="Red">Red (Immediate)</option>
+          <option value="Orange">Orange (Very Urgent)</option>
+          <option value="Yellow">Yellow (Urgent)</option>
+          <option value="Green">Green (Standard)</option>
+          <option value="Blue">Blue (Non-Urgent)</option>
+        </select>
+      </td>
+      <td>
+        <button onclick="assignSeverity('${p.patientID}')">Confirm</button>
+      </td>
     `;
-    return row;
+    patientList.appendChild(row);
+  });
 }
 
-// Function to Assign Severity Level
 function assignSeverity(patientID) {
-    let severity = document.getElementById(`severity-${patientID}`).value;
-    if (!severity) {
-        alert("Please select a severity level.");
-        return;
-    }
-
-    fetch(`${RENDER_API_URL}/assign-severity`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ patientID, severity })
-    })
-    .then(response => response.json())
+  const severity = document.getElementById(`severity-${patientID}`).value;
+  if (!severity) {
+    alert("Please select a severity first.");
+    return;
+  }
+  fetch(`${RENDER_API_URL}/assign-severity`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ patientID, severity })
+  })
+    .then(r => r.json())
     .then(data => {
-        if (data.success) {
-            alert("Severity assigned successfully!");
-            loadTriagePatientsRealTime(); // Refresh patient list dynamically
-        } else {
-            throw new Error("Server responded with an error.");
-        }
+      if (data.success) {
+        alert("Severity assigned successfully.");
+        loadTriagePatients();
+      } else {
+        alert("Error assigning severity.");
+      }
     })
-    .catch(error => {
-        console.error("❌ Error assigning severity:", error);
-        alert("Failed to assign severity. Please try again.");
+    .catch(err => {
+      console.error("assignSeverity error:", err);
+      alert("Failed to assign severity.");
     });
 }
 
-// Automatically reload every 5 seconds for real-time updates
-setInterval(loadTriagePatientsRealTime, 5000);
+// Auto-refresh every 5s for real-time triage
+setInterval(loadTriagePatients, 5000);
 
-// Load patients when the page loads
-document.addEventListener("DOMContentLoaded", loadTriagePatientsRealTime);
+document.addEventListener("DOMContentLoaded", loadTriagePatients);
