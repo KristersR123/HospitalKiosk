@@ -47,6 +47,8 @@ function loadDoctorQueue() {
 
 // Function to Accept a Patient
 function acceptPatient(patientID) {
+    event.preventDefault(); // Prevent default action (form submission, page refresh)
+    
     fetch(`${RENDER_API_URL}/accept-patient`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
