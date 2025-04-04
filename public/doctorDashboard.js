@@ -3,6 +3,8 @@ const doctorDashboard = document.getElementById("doctor-dashboard");
 
 let doctorTimers = {}; // Track active timers
 
+let autoRefreshEnabled = true;
+
 function loadDoctorQueue() {
     if (!autoRefreshEnabled) return;
 
