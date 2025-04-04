@@ -35,6 +35,10 @@ exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientI
         const patientBefore = change.before.val();
         const patientAfter = change.after.val();
 
+        console.log("🔥 Triggered adjustWaitTimesOnDischarge");
+        console.log("Status before:", patientBefore.status);
+        console.log("Status after:", patientAfter.status);
+
         if (patientBefore.status === "With Doctor" && patientAfter.status !== "With Doctor") {
             const baseWaitTime = severityWaitTimes[patientBefore.severity] || 0;
             const acceptedTime = new Date(patientBefore.acceptedTime).getTime();

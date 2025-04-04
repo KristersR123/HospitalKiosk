@@ -369,7 +369,10 @@ app.post("/discharge-patient", async (req, res) => {
             return res.status(404).json({ error: "Patient not found" });
         }
 
-        await db.ref(`patients/${firebaseKey}`).remove();
+        await db.ref(`patients/${firebaseKey}`).update({
+            status: "Discharged",
+            dischargedTime: new Date().toISOString()
+        });
 
         res.json({ success: true, message: `Patient ${patientID} discharged.` });
     } catch (error) {
