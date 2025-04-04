@@ -197,5 +197,5 @@ document.addEventListener("DOMContentLoaded", () => {
     toggleBtn.innerText = "Pause Refresh";
     toggleBtn.style.margin = "10px";
     toggleBtn.onclick = toggleAutoRefresh;
-    document.body.insertBefore(toggleBtn, doctorQueueContainer);
+    doctorQueueContainer.parentNode.insertBefore(toggleBtn, doctorQueueContainer);
 });
