@@ -4,130 +4,196 @@ const doctorDashboard = document.getElementById("doctor-dashboard");
 let doctorTimers = {}; // Track active timers
 
 function loadDoctorQueue() {
+    if (!autoRefreshEnabled) return;
+
     fetch(`${RENDER_API_URL}/doctor-queue`)
         .then(response => response.json())
         .then(patients => {
-            console.log("Doctor queue:", patients);
-            doctorDashboard.innerHTML = "";
+            doctorQueueContainer.innerHTML = "";
 
-            if (!Array.isArray(patients) || patients.length === 0) {
-                doctorDashboard.innerHTML = "<p>No patients currently being seen.</p>";
+            if (!patients || patients.length === 0) {
+                doctorQueueContainer.innerHTML = "<p>No patients in queue.</p>";
                 return;
             }
 
+            const statsDiv = document.createElement("div");
+            statsDiv.className = "queue-stats";
+            const averageTime = calculateAverageDoctorTime(patients);
+            statsDiv.innerHTML = `<strong>Average Time with Doctor:</strong> ${averageTime} min`;
+            doctorQueueContainer.appendChild(statsDiv);
+
+            const exportBtn = document.createElement("button");
+            exportBtn.innerText = "Export Queue as CSV";
+            exportBtn.onclick = () => exportCSV(patients);
+            exportBtn.style.marginBottom = "10px";
+            doctorQueueContainer.appendChild(exportBtn);
+
+            const table = document.createElement("table");
+            table.className = "doctor-table";
+
+            const thead = document.createElement("thead");
+            thead.innerHTML = `
+                <tr>
+                    <th>Queue #</th>
+                    <th>Patient ID</th>
+                    <th>Condition</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                    <th>Time With Doctor</th>
+                    <th>Action</th>
+                </tr>
+            `;
+            table.appendChild(thead);
+
+            const tbody = document.createElement("tbody");
+
             patients.forEach(patient => {
-                let patientCard = document.createElement("div");
-                patientCard.classList.add("patient-card");
-                patientCard.id = `doctor-patient-${patient.id}`;
+                const row = document.createElement("tr");
+                const withDoctorTime = calculateTimeWithDoctor(patient);
 
-                let statusText = patient.status === "With Doctor" ? "Being Seen" : "Waiting for Doctor";
-                let timerDisplay = patient.status === "With Doctor" ? 
-                    `<p>Time With Doctor: <span id="timer-${patient.id}">0 min</span></p>` : "";
-
-                patientCard.innerHTML = `
-                    <h2>Patient #${patient.queueNumber}</h2>
-                    <p>Severity: <span class="${patient.severity.toLowerCase()}">${patient.severity}</span></p>
-                    <p>Status: <span id="status-${patient.id}">${statusText}</span></p>
-                    ${timerDisplay}
-                    ${patient.status === "Please See Doctor" ? `<button class="accept-button" onclick="acceptPatient('${patient.id}')">Accept</button>` : ""}
-                    ${patient.status === "With Doctor" ? `<button class="discharge-button" onclick="dischargePatient('${patient.id}')">Discharge</button>` : ""}
+                row.innerHTML = `
+                    <td>#${patient.queueNumber}</td>
+                    <td>${patient.patientID}</td>
+                    <td>${patient.condition}</td>
+                    <td>${patient.severity}</td>
+                    <td>${patient.status}</td>
+                    <td>${withDoctorTime}</td>
+                    <td>
+                        ${patient.status === "Please See Doctor" ? `<button onclick="acceptPatient('${patient.patientID}')">Accept</button>` :
+                            patient.status === "With Doctor" ? `<button onclick="dischargePatient('${patient.patientID}')">Discharge</button>` :
+                            "--"}
+                    </td>
                 `;
 
-                doctorDashboard.appendChild(patientCard);
-
-                // If patient is already "With Doctor", start the timer
-                if (patient.status === "With Doctor") {
-                    startDoctorTimer(patient.id, patient.acceptedTime);
+                if (patient.status === "Please See Doctor") {
+                    row.style.backgroundColor = "#d4edda";
+                    triggerDoctorReadyAlert(patient.patientID);
+                    triggerDesktopNotification(patient);
                 }
+
+                tbody.appendChild(row);
             });
+
+            table.appendChild(tbody);
+            doctorQueueContainer.appendChild(table);
         })
-        .catch(error => console.error("Error loading doctor queue:", error));
+        .catch(err => {
+            console.error("Error loading doctor queue:", err);
+        });
 }
 
+function calculateTimeWithDoctor(patient) {
+    if (patient.status !== "With Doctor" || !patient.acceptedTime) return "--";
+    const acceptedTime = new Date(patient.acceptedTime).getTime();
+    const now = Date.now();
+    const diffMinutes = Math.floor((now - acceptedTime) / 60000);
+    return `${diffMinutes} min`;
+}
 
-// Function to Accept a Patient
+function calculateAverageDoctorTime(patients) {
+    const times = patients
+        .filter(p => p.status === "With Doctor" && p.acceptedTime)
+        .map(p => Math.floor((Date.now() - new Date(p.acceptedTime).getTime()) / 60000));
+
+    if (times.length === 0) return 0;
+
+    const avg = times.reduce((a, b) => a + b, 0) / times.length;
+    return Math.round(avg);
+}
+
+function exportCSV(patients) {
+    const headers = ["Queue #", "Patient ID", "Condition", "Severity", "Status", "Time With Doctor"];
+    const rows = patients.map(p => [
+        p.queueNumber,
+        p.patientID,
+        p.condition,
+        p.severity,
+        p.status,
+        calculateTimeWithDoctor(p)
+    ]);
+
+    let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "doctor_queue.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function triggerDoctorReadyAlert(patientID) {
+    const soundID = `doctor-ready-sound-${patientID}`;
+    if (!document.getElementById(soundID)) {
+        const audio = document.createElement("audio");
+        audio.id = soundID;
+        audio.src = "https://www.myinstants.com/media/sounds/bleep.mp3";
+        audio.autoplay = true;
+        document.body.appendChild(audio);
+
+        setTimeout(() => {
+            audio.remove();
+        }, 3000);
+    }
+}
+
+function triggerDesktopNotification(patient) {
+    if (Notification.permission === "granted") {
+        new Notification("Doctor Ready", {
+            body: `Patient #${patient.queueNumber} (${patient.patientID}) is ready to be seen.`,
+        });
+    }
+}
+
+function requestNotificationPermission() {
+    if ("Notification" in window && Notification.permission !== "granted") {
+        Notification.requestPermission();
+    }
+}
+
+function toggleAutoRefresh() {
+    autoRefreshEnabled = !autoRefreshEnabled;
+    document.getElementById("toggle-refresh-btn").innerText = autoRefreshEnabled ? "Pause Refresh" : "Resume Refresh";
+    if (autoRefreshEnabled) loadDoctorQueue();
+}
+
 function acceptPatient(patientID) {
     fetch(`${RENDER_API_URL}/accept-patient`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ patientID })
     })
-    .then(response => response.json())
-    .then(() => {
-        alert(`Patient ${patientID} has been accepted by the doctor.`);
-        
-        document.getElementById(`status-${patientID}`).innerText = "Being Seen";
-        document.querySelector(`#doctor-patient-${patientID} .accept-button`).style.display = "none";
-        document.querySelector(`#doctor-patient-${patientID} .discharge-button`).style.display = "inline-block";
-
-        // Start tracking time with doctor
-        let acceptedTime = new Date().toISOString();
-        startDoctorTimer(patientID, acceptedTime);
-
+    .then(res => res.json())
+    .then(response => {
+        console.log("Accepted:", response);
         loadDoctorQueue();
     })
-    .catch(error => console.error("Error accepting patient:", error));
+    .catch(err => console.error("Error accepting patient:", err));
 }
 
-
-
-function startDoctorTimer(patientID, acceptedTime) {
-    // Convert acceptedTime to a Date object
-    let startTime = new Date(acceptedTime).getTime();
-
-    if (doctorTimers[patientID]) {
-        clearInterval(doctorTimers[patientID]); // Stop previous timer if any
-    }
-
-    doctorTimers[patientID] = setInterval(() => {
-        let now = new Date().getTime();
-        let elapsedMinutes = Math.floor((now - startTime) / 60000); // Convert to minutes
-        let timerElement = document.getElementById(`timer-${patientID}`);
-
-        if (timerElement) {
-            timerElement.innerHTML = `${elapsedMinutes} min`;
-        }
-    }, 60000); // Updates every 1 minute
-}
-
-// function startDoctorTimer(patientID, acceptedTime) {
-//   let start = new Date(acceptedTime).getTime();
-//   if (doctorTimers[patientID]) clearInterval(doctorTimers[patientID]);
-//   doctorTimers[patientID] = setInterval(() => {
-//     let now = Date.now();
-//     let elapsed = Math.floor((now - start) / 1000);
-//     let m = Math.floor(elapsed / 60);
-//     let s = elapsed % 60;
-//     let timerEl = document.getElementById(`timer-${patientID}`);
-//     if (timerEl) {
-//       timerEl.innerHTML = `${m} min ${s}s`;
-//     }
-//   }, 1000);
-// }
-
-// Function to Discharge a Patient
 function dischargePatient(patientID) {
-    clearInterval(doctorTimers[patientID]); // Stop timer
-
     fetch(`${RENDER_API_URL}/discharge-patient`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ patientID })
     })
-    .then(response => response.json())
-    .then(() => {
-        alert(`Patient ${patientID} has been discharged.`);
-
-        // Remove patient from doctor dashboard
-        document.getElementById(`doctor-patient-${patientID}`).remove();
+    .then(res => res.json())
+    .then(response => {
+        console.log("Discharged:", response);
         loadDoctorQueue();
     })
-    .catch(error => console.error("Error discharging patient:", error));
+    .catch(err => console.error("Error discharging patient:", err));
 }
 
+setInterval(loadDoctorQueue, 15000);
+document.addEventListener("DOMContentLoaded", () => {
+    loadDoctorQueue();
+    requestNotificationPermission();
 
-// Reload every 10 seconds
-setInterval(loadDoctorQueue, 10000);
-
-// Load dashboard on page load
-document.addEventListener("DOMContentLoaded", loadDoctorQueue);
+    const toggleBtn = document.createElement("button");
+    toggleBtn.id = "toggle-refresh-btn";
+    toggleBtn.innerText = "Pause Refresh";
+    toggleBtn.style.margin = "10px";
+    toggleBtn.onclick = toggleAutoRefresh;
+    document.body.insertBefore(toggleBtn, doctorQueueContainer);
+});
