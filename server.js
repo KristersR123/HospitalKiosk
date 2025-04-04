@@ -169,7 +169,7 @@ app.get("/doctor-queue", async (req, res) => {
             const patient = childSnapshot.val();
 
             // Include both "Please See Doctor" and "With Doctor"
-            if (patient.status === "Please See Doctor" || patient.status === "With Doctor") {
+            if ((patient.status === "Please See Doctor" || patient.status === "With Doctor") &&patient.status !== "Discharged" && !patient.wasSeen) {
                 doctorQueue.push({
                     id: childSnapshot.key,
                     ...patient
@@ -254,8 +254,8 @@ app.get("/waitlist", async (req, res) => {
         snapshot.forEach(childSnapshot => {
             const patient = childSnapshot.val();
             
-            if (!patient || !patient.status || !patient.patientID) {
-                console.warn("⚠ Skipping invalid patient entry:", patient);
+            if (!patient || !patient.status || !patient.patientID || patient.status === "Discharged" || patient.wasSeen) {
+                console.warn("⚠ Skipping invalid or discharged patient:", patient);
                 return;
             }
 
@@ -371,14 +371,14 @@ app.post("/discharge-patient", async (req, res) => {
 
         await db.ref(`patients/${firebaseKey}`).update({
             status: "Discharged",
-            dischargedTime: new Date().toISOString(),
-            estimatedWaitTime: null
+            wasSeen: true,
+            dischargedTime: new Date().toISOString()
         });
 
-        res.json({ success: true, message: `Patient ${patientID} discharged.` });
+        return res.json({ success: true, message: `Patient ${patientID} discharged.` });
     } catch (error) {
         console.error("Error discharging patient:", error);
-        res.status(500).json({ success: false, message: "Error discharging patient." });
+        return res.status(500).json({ success: false, message: "Error discharging patient." });
     }
 });
 

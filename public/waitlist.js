@@ -27,7 +27,7 @@ function loadWaitlistRealTime() {
             let firstPatientInQueue = null;
 
             patients.forEach(patient => {
-                if (!patient.status || patient.status === "With Doctor") return;
+                if (!patient.status || patient.status === "With Doctor" || patient.status === "Discharged" || patient.wasSeen) return;
 
                 const key = `${patient.condition}-${patient.severity}`;
                 if (!conditionGroups[key]) conditionGroups[key] = [];

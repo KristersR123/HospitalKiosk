@@ -2,7 +2,6 @@ const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
 const doctorQueueContainer = document.getElementById("doctor-dashboard");
 
 let doctorTimers = {}; // Track active timers
-
 let autoRefreshEnabled = true;
 
 function loadDoctorQueue() {
@@ -50,6 +49,8 @@ function loadDoctorQueue() {
             const tbody = document.createElement("tbody");
 
             patients.forEach(patient => {
+                if (patient.status === "Discharged" || patient.wasSeen) return; // Skip discharged patients
+
                 const row = document.createElement("tr");
                 const withDoctorTime = calculateTimeWithDoctor(patient);
 
@@ -105,7 +106,7 @@ function calculateAverageDoctorTime(patients) {
 
 function exportCSV(patients) {
     const headers = ["Queue #", "Patient ID", "Condition", "Severity", "Status", "Time With Doctor"];
-    const rows = patients.map(p => [
+    const rows = patients.filter(p => p.status !== "Discharged" && !p.wasSeen).map(p => [
         p.queueNumber,
         p.patientID,
         p.condition,

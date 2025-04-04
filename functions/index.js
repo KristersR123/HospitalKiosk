@@ -35,27 +35,32 @@ exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientI
         const patientBefore = change.before.val();
         const patientAfter = change.after.val();
 
-        console.log("🔥 Triggered adjustWaitTimesOnDischarge");
-        console.log("Status before:", patientBefore.status);
-        console.log("Status after:", patientAfter.status);
+        if (
+            patientBefore.status === "With Doctor" &&
+            patientAfter.status === "Discharged"
+        ) {
+            console.log("🔥 Triggered adjustWaitTimesOnDischarge");
 
-        if (patientBefore.status === "With Doctor" && patientAfter.status !== "With Doctor") {
             const baseWaitTime = severityWaitTimes[patientBefore.severity] || 0;
             const acceptedTime = new Date(patientBefore.acceptedTime).getTime();
             const now = Date.now();
-            const actualTime = Math.floor((now - acceptedTime) / 60000); // in minutes
-            const extraTime = actualTime - baseWaitTime; // positive = doctor took longer
+            const actualTime = Math.floor((now - acceptedTime) / 60000);
+            const extraTime = actualTime - baseWaitTime;
 
-            if (extraTime === 0) return null;
+            if (extraTime === 0) {
+                console.log("⏱ No adjustment needed (doctor took expected time).");
+                return null;
+            }
 
             const patientsRef = admin.database().ref('/patients');
             const patientsSnapshot = await patientsRef.once('value');
+
+            let doctorStillBusy = false;
             const updates = {};
 
-            // Only adjust if doctor isn't still busy with someone else in the same queue group
-            let doctorStillBusy = false;
             patientsSnapshot.forEach((snap) => {
                 const p = snap.val();
+
                 if (
                     p.status === "With Doctor" &&
                     p.condition === patientBefore.condition &&
@@ -66,7 +71,7 @@ exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientI
             });
 
             if (doctorStillBusy) {
-                console.log("Doctor still with patient in same queue group. Skipping update.");
+                console.log("⚠ Doctor still busy with similar patient — skipping adjustment.");
                 return null;
             }
 
@@ -75,19 +80,20 @@ exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientI
                 const key = snap.key;
 
                 if (
-                    patient.patientID !== patientBefore.patientID && 
                     (patient.status?.startsWith("Queueing for") || patient.status === "Please See Doctor") &&
                     patient.condition === patientBefore.condition &&
                     patient.severity === patientBefore.severity
                 ) {
-                    let currentWaitTime = patient.estimatedWaitTime || 0;
-                    let newTime = currentWaitTime + extraTime;
-                    updates[`${key}/estimatedWaitTime`] = Math.max(0, newTime);
+                    const currentWait = patient.estimatedWaitTime || 0;
+                    const newWait = Math.max(currentWait + extraTime, 0);
+                    updates[`${key}/estimatedWaitTime`] = newWait;
                 }
             });
 
-            await patientsRef.update(updates);
-            console.log(`Wait times updated based on extra time spent (${extraTime} minutes).`);
+            if (Object.keys(updates).length > 0) {
+                await patientsRef.update(updates);
+                console.log(`✅ Updated wait times by ${extraTime > 0 ? "+" : ""}${extraTime} mins.`);
+            }
         }
 
         return null;
