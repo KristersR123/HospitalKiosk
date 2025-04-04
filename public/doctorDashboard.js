@@ -71,43 +71,43 @@ function acceptPatient(patientID) {
 
 
 
-// function startDoctorTimer(patientID, acceptedTime) {
-//     // Convert acceptedTime to a Date object
-//     let startTime = new Date(acceptedTime).getTime();
-
-//     if (doctorTimers[patientID]) {
-//         clearInterval(doctorTimers[patientID]); // Stop previous timer if any
-//     }
-
-//     doctorTimers[patientID] = setInterval(() => {
-//         let now = new Date().getTime();
-//         let elapsedMinutes = Math.floor((now - startTime) / 60000); // Convert to minutes
-//         let timerElement = document.getElementById(`timer-${patientID}`);
-
-//         if (timerElement) {
-//             timerElement.innerHTML = `${elapsedMinutes} min`;
-//         }
-//     }, 60000); // Updates every 1 minute
-// }
-
 function startDoctorTimer(patientID, acceptedTime) {
-  let start = new Date(acceptedTime).getTime();
-  if (doctorTimers[patientID]) clearInterval(doctorTimers[patientID]);
-  doctorTimers[patientID] = setInterval(() => {
-    let now = Date.now();
-    let elapsed = Math.floor((now - start) / 1000);
-    let m = Math.floor(elapsed / 60);
-    let s = elapsed % 60;
-    let timerEl = document.getElementById(`timer-${patientID}`);
-    if (timerEl) {
-      timerEl.innerHTML = `${m} min ${s}s`;
+    // Convert acceptedTime to a Date object
+    let startTime = new Date(acceptedTime).getTime();
+
+    if (doctorTimers[patientID]) {
+        clearInterval(doctorTimers[patientID]); // Stop previous timer if any
     }
-  }, 1000);
+
+    doctorTimers[patientID] = setInterval(() => {
+        let now = new Date().getTime();
+        let elapsedMinutes = Math.floor((now - startTime) / 60000); // Convert to minutes
+        let timerElement = document.getElementById(`timer-${patientID}`);
+
+        if (timerElement) {
+            timerElement.innerHTML = `${elapsedMinutes} min`;
+        }
+    }, 60000); // Updates every 1 minute
 }
+
+// function startDoctorTimer(patientID, acceptedTime) {
+//   let start = new Date(acceptedTime).getTime();
+//   if (doctorTimers[patientID]) clearInterval(doctorTimers[patientID]);
+//   doctorTimers[patientID] = setInterval(() => {
+//     let now = Date.now();
+//     let elapsed = Math.floor((now - start) / 1000);
+//     let m = Math.floor(elapsed / 60);
+//     let s = elapsed % 60;
+//     let timerEl = document.getElementById(`timer-${patientID}`);
+//     if (timerEl) {
+//       timerEl.innerHTML = `${m} min ${s}s`;
+//     }
+//   }, 1000);
+// }
 
 // Function to Discharge a Patient
 function dischargePatient(patientID) {
-    clearInterval(doctorTimers[patientID]); // Stop the timer
+    clearInterval(doctorTimers[patientID]); // Stop timer
 
     fetch(`${RENDER_API_URL}/discharge-patient`, {
         method: "POST",
@@ -115,15 +115,12 @@ function dischargePatient(patientID) {
         body: JSON.stringify({ patientID })
     })
     .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(`Patient ${patientID} has been discharged.`);
-            document.getElementById(`doctor-patient-${patientID}`).remove();
-            // Re-fetch the updated queue to reflect changes
-            loadDoctorQueue();
-        } else {
-            alert("Error discharging patient: " + data.error);
-        }
+    .then(() => {
+        alert(`Patient ${patientID} has been discharged.`);
+
+        // Remove patient from doctor dashboard
+        document.getElementById(`doctor-patient-${patientID}`).remove();
+        loadDoctorQueue();
     })
     .catch(error => console.error("Error discharging patient:", error));
 }
