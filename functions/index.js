@@ -75,6 +75,7 @@ exports.adjustWaitTimesOnDischarge = functions.database.ref('/patients/{patientI
                 const key = snap.key;
 
                 if (
+                    patient.patientID !== patientBefore.patientID && 
                     (patient.status?.startsWith("Queueing for") || patient.status === "Please See Doctor") &&
                     patient.condition === patientBefore.condition &&
                     patient.severity === patientBefore.severity

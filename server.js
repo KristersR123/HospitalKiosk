@@ -371,7 +371,8 @@ app.post("/discharge-patient", async (req, res) => {
 
         await db.ref(`patients/${firebaseKey}`).update({
             status: "Discharged",
-            dischargedTime: new Date().toISOString()
+            dischargedTime: new Date().toISOString(),
+            estimatedWaitTime: null
         });
 
         res.json({ success: true, message: `Patient ${patientID} discharged.` });
