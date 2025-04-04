@@ -1,5 +1,5 @@
 const RENDER_API_URL = "https://hospitalkiosk.onrender.com";
-const doctorDashboard = document.getElementById("doctor-dashboard");
+const doctorQueueContainer = document.getElementById("doctor-dashboard");
 
 let doctorTimers = {}; // Track active timers
 
