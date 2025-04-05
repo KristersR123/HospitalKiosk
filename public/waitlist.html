@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waitlist Display</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+</head>
+
+<style>
+body, html {
+    margin: 0;
+    padding: 0;
+    font-family: 'Arial', sans-serif;
+    background-color: #007bff;
+    text-align: center;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 15px;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+h1 {
+    color: #007bff;
+    font-size: 28px;
+    margin-bottom: 20px;
+}
+
+.waitlist {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 25px;
+    margin-top: 20px;
+}
+
+.condition-section {
+    border: 2px solid #007bff;
+    border-radius: 10px;
+    padding: 15px;
+    width: 320px;
+    text-align: center;
+    background-color: #f8f9fa;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s;
+}
+
+.condition-section:hover {
+    transform: scale(1.05);
+}
+
+.condition-title {
+    font-size: 20px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.patient-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+.patient-item {
+    background-color: #ffffff;
+    padding: 12px;
+    margin-top: 8px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 16px;
+    font-weight: bold;
+    transition: background 0.3s;
+}
+
+.patient-item:first-child {
+    background-color: #ffdddd; /* Highlight Next Patient */
+    border-left: 6px solid #ff5555;
+}
+
+.countdown {
+    font-weight: bold;
+    color: red;
+    font-size: 18px;
+}
+
+/* Severity Colors */
+.red { color: #ff0000; font-weight: bold; }
+.orange { color: #ff8800; font-weight: bold; }
+.yellow { color: #f4c542; font-weight: bold; }
+.green { color: #28a745; font-weight: bold; }
+</style>
+
+<body>
+    <div class="container">
+        <h1>🛑 Real-Time A&E Waitlist</h1>
+        <div class="waitlist" id="waitlist-container">
+            <!-- Dynamic Condition Categories will be inserted here -->
+        </div>
+    </div>
+
+    <script src="waitlist.js"></script>
+</body>
+</html>

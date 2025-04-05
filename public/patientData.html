@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+    <title>Patient Condition Selection</title>
+
+    <!-- Add Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+</head>
+<style>
+    body, html {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    background-color: #e3f2fd;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    text-align: center;
+}
+
+.instruction h2, .instruction p {
+    color: #333;
+}
+
+.categories {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-top: 20px;
+    justify-items: center;
+}
+
+.category {
+    width: 200px;
+    text-align: center;
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-radius: 10px;
+    padding: 10px;
+    transition: transform 0.3s, border-color 0.3s;
+}
+
+.category:hover {
+    transform: scale(1.05);
+    border-color: #007bff;
+}
+
+.category img {
+    max-width: 100px;
+}
+
+.category p {
+    font-size: 14px;
+    color: #555;
+}
+
+.confirmation {
+    margin-top: 20px;
+}
+
+.confirmation p {
+    font-size: 18px;
+    color: #333;
+}
+
+.confirmation button {
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.confirmation button:hover {
+    background-color: #1e7e34;
+}
+</style>
+<body>
+    <div class="container">
+        <div class="instruction">
+            <h2>Please select the type of injury or illness you are experiencing</h2>
+            <p>Tap on the category that best describes your current condition.</p>
+        </div>
+
+        <div class="categories">
+            <div class="category" onclick="selectCategory('Head Injury')">
+                <img src="images/head-injury.png" alt="Head Injury">
+                <p>Head trauma, concussion, or head impact</p>
+            </div>
+            <div class="category" onclick="selectCategory('Fractured Bones')">
+                <img src="images/fractured-bones.png" alt="Fractured Bones">
+                <p>Broken or fractured bones in any part of the body</p>
+            </div>
+            <div class="category" onclick="selectCategory('Chest Pain')">
+                <img src="images/chest-pain.png" alt="Chest Pain">
+                <p>Chest pain, tightness, or discomfort</p>
+            </div>
+            <div class="category" onclick="selectCategory('Respiratory Issues')">
+                <img src="images/resp.png" alt="Respiratory Issues">
+                <p>Shortness of breath, asthma, or respiratory distress</p>
+            </div>
+            <div class="category" onclick="selectCategory('Abdominal Issues')">
+                <img src="images/abdominal.png" alt="Abdominal Issues">
+                <p>For severe pain or discomfort in the abdominal region</p>
+            </div>
+            <div class="category" onclick="selectCategory('Minor Cuts')">
+                <img src="images/minor-cuts.png" alt="Minor Cuts">
+                <p>For minor cuts, abrasions, or non-life-threatening bleeding.</p>
+            </div>
+            <div class="category" onclick="selectCategory('Allergies')">
+                <img src="images/allergy.png" alt="Allergies">
+                <p>For reactions involving skin rash, swelling, or other allergy symptons</p>
+            </div>
+            <div class="category" onclick="selectCategory('Infection')">
+                <img src="images/flu.png" alt="Infection">
+                <p>For fever, flu-like symptoms, or other signs of infection</p>
+            </div>
+        </div>
+
+        <div class="confirmation">
+            <p id="selected-category">You've Selected: None</p>
+            <button onclick="confirmSelection()">Confirm</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
