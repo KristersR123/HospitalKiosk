@@ -129,3 +129,4 @@ exports.adjustWaitTimesOnDischarge = functions.database
 
     return null; // End of the function
   });
+f
