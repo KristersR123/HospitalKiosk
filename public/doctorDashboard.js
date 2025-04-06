@@ -146,85 +146,15 @@ function calculateAverageDoctorTime(patients) {
     return Math.round(avg);
 }
 
-/**
- * exportCSV generates a CSV file containing the current doctor queue data
- * and triggers a download in the browser.
- */
-function exportCSV(patients) {
-    const headers = ["Queue #", "Patient ID", "Condition", "Severity", "Status", "Time With Doctor"];
-    // Filters out discharged or seen patients
-    const rows = patients
-        .filter(p => p.status !== "Discharged" && !p.wasSeen)
-        .map(p => [
-            p.queueNumber,
-            p.patientID,
-            p.condition,
-            p.severity,
-            p.status,
-            calculateTimeWithDoctor(p)
-        ]);
-
-    // Constructs CSV content
-    let csvContent =
-        "data:text/csv;charset=utf-8," +
-        headers.join(",") +
-        "\n" +
-        rows.map(e => e.join(",")).join("\n");
-
-    // Encodes the CSV for download
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "doctor_queue.csv");
-
-    // Appends link, triggers click, then removes link from the DOM
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-/**
- * triggerDoctorReadyAlert plays a short audio alert if a patient
- * is ready to see the doctor.
- */
-function triggerDoctorReadyAlert(patientID) {
-    const soundID = `doctor-ready-sound-${patientID}`;
-    // Checks if an alert is not already present
-    if (!document.getElementById(soundID)) {
-        const audio = document.createElement("audio");
-        audio.id = soundID;
-        audio.src = "https://www.myinstants.com/media/sounds/bleep.mp3";
-        audio.autoplay = true;
-        document.body.appendChild(audio);
-
-        // Removes the audio element after 3 seconds
-        setTimeout(() => {
-            audio.remove();
-        }, 3000);
-    }
-}
-
-/**
- * triggerDesktopNotification displays a browser notification
- * indicating a patient is ready to be seen, if permission is granted.
- */
-function triggerDesktopNotification(patient) {
-    if (Notification.permission === "granted") {
-        new Notification("Doctor Ready", {
-            body: `Patient #${patient.queueNumber} (${patient.patientID}) is ready to be seen.`,
-        });
-    }
-}
-
-/**
- * requestNotificationPermission prompts for notification permission
- * if not already granted.
- */
-function requestNotificationPermission() {
-    if ("Notification" in window && Notification.permission !== "granted") {
-        Notification.requestPermission();
-    }
-}
+// /**
+//  * requestNotificationPermission prompts for notification permission
+//  * if not already granted.
+//  */
+// function requestNotificationPermission() {
+//     if ("Notification" in window && Notification.permission !== "granted") {
+//         Notification.requestPermission();
+//     }
+// }
 
 /**
  * toggleAutoRefresh toggles the autoRefreshEnabled flag
