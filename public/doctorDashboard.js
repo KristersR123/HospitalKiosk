@@ -215,7 +215,7 @@ setInterval(loadDoctorQueue, 15000);
  */
 document.addEventListener("DOMContentLoaded", () => {
     loadDoctorQueue();
-    requestNotificationPermission();
+    // requestNotificationPermission();
 
     const toggleBtn = document.createElement("button");
     toggleBtn.id = "toggle-refresh-btn";
