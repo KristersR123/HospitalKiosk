@@ -45,7 +45,6 @@ patientsRef.on("child_changed", snapshot => {
 // WAIT TIME MAPPING BASED ON SEVERITY
 // ===========================================
 const severityWaitTimes = {
-  "Red": 0,
   "Orange": 10,
   "Yellow": 60,
   "Green": 120,
@@ -453,7 +452,6 @@ app.post('/assign-severity', async (req, res) => {
 
     // Basic severity -> waitTimes mapping for fallback
     const severityWaitTimes = {
-      'Red': 0,
       'Orange': 10,
       'Yellow': 60,
       'Green': 120,

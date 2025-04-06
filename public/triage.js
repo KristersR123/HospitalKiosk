@@ -34,7 +34,6 @@ function loadTriagePatientsRealTime() {
                     <td>
                         <select id="severity-${patient.patientID}">
                             <option value="">Select Severity</option>
-                            <option value="Red">Red (Immediate)</option>
                             <option value="Orange">Orange (Very Urgent)</option>
                             <option value="Yellow">Yellow (Urgent)</option>
                             <option value="Green">Green (Standard)</option>
@@ -50,7 +49,7 @@ function loadTriagePatientsRealTime() {
                 patientList.appendChild(row);
             });
         })
-        .catch(error => console.error("❌ Error loading triage patients:", error));
+        .catch(error => console.error("Error loading triage patients:", error));
 }
 
 /**
@@ -84,7 +83,7 @@ function assignSeverity(patientID) {
                 alert("Error assigning severity.");
             }
         })
-        .catch(error => console.error("❌ Error assigning severity:", error));
+        .catch(error => console.error("Error assigning severity:", error));
 }
 
 // Sets an interval to reload triage patient data every 5 seconds in real time

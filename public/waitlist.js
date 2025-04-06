@@ -6,7 +6,6 @@ const waitlistContainer = document.getElementById("waitlist-container");
 
 // severityWaitTimes holds the base wait times (in minutes) for each severity level
 const severityWaitTimes = {
-    "Red": 0,
     "Orange": 10,
     "Yellow": 60,
     "Green": 120,

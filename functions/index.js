@@ -23,14 +23,13 @@ admin.initializeApp(); // Loads credentials from default environment (provided b
 // ===========================================
 /**
  * severityWaitTimes is a simple object that maps each triage severity level
- * (Red/Orange/Yellow/Green/Blue) to a base expected wait time (in minutes).
+ * (Orange/Yellow/Green/Blue) to a base expected wait time (in minutes).
  */
 const severityWaitTimes = {
-  Red: 0,     // Highest priority, immediate
-  Orange: 10, // Very urgent
-  Yellow: 60, // Urgent
-  Green: 120, // Standard
-  Blue: 240   // Non-urgent
+  Orange: 10,
+  Yellow: 60,
+  Green: 120,
+  Blue: 240
 };
 
 // ===========================================
