@@ -160,7 +160,4 @@ setInterval(loadDoctorQueue, 15000);
  */
 document.addEventListener("DOMContentLoaded", () => {
     loadDoctorQueue();
-
-    // Places the toggle button above the doctorQueueContainer
-    doctorQueueContainer.parentNode.insertBefore(toggleBtn, doctorQueueContainer);
 });
