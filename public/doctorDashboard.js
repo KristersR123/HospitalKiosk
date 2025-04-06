@@ -12,8 +12,6 @@ let autoRefreshEnabled = true;
 
 /**
  * loadDoctorQueue fetches the doctor queue data and updates the DOM.
- * This function also handles displaying various UI components such as
- * average doctor time, CSV export, and per-patient action buttons.
  */
 function loadDoctorQueue() {
     // Checks if auto-refresh is disabled before proceeding
@@ -31,20 +29,6 @@ function loadDoctorQueue() {
                 doctorQueueContainer.innerHTML = "<p>No patients in queue.</p>";
                 return;
             }
-
-            // Creates a stats section to display average time with doctor
-            const statsDiv = document.createElement("div");
-            statsDiv.className = "queue-stats";
-            const averageTime = calculateAverageDoctorTime(patients);
-            statsDiv.innerHTML = `<strong>Average Time with Doctor:</strong> ${averageTime} min`;
-            doctorQueueContainer.appendChild(statsDiv);
-
-            // Creates an export button for queue data as CSV
-            const exportBtn = document.createElement("button");
-            exportBtn.innerText = "Export Queue as CSV";
-            exportBtn.onclick = () => exportCSV(patients);
-            exportBtn.style.marginBottom = "10px";
-            doctorQueueContainer.appendChild(exportBtn);
 
             // Creates an HTML table to list all patients in the doctor queue
             const table = document.createElement("table");
@@ -130,43 +114,6 @@ function calculateTimeWithDoctor(patient) {
 }
 
 /**
- * calculateAverageDoctorTime calculates the average time (in minutes)
- * that currently 'With Doctor' patients have spent with the doctor.
- */
-function calculateAverageDoctorTime(patients) {
-    const times = patients
-        .filter(p => p.status === "With Doctor" && p.acceptedTime)
-        .map(p => Math.floor((Date.now() - new Date(p.acceptedTime).getTime()) / 60000));
-
-    if (times.length === 0) return 0;
-
-    const avg = times.reduce((a, b) => a + b, 0) / times.length;
-    return Math.round(avg);
-}
-
-// /**
-//  * requestNotificationPermission prompts for notification permission
-//  * if not already granted.
-//  */
-// function requestNotificationPermission() {
-//     if ("Notification" in window && Notification.permission !== "granted") {
-//         Notification.requestPermission();
-//     }
-// }
-
-/**
- * toggleAutoRefresh toggles the autoRefreshEnabled flag
- * and updates the button text. If re-enabled, triggers
- * a loadDoctorQueue call immediately.
- */
-function toggleAutoRefresh() {
-    autoRefreshEnabled = !autoRefreshEnabled;
-    document.getElementById("toggle-refresh-btn").innerText =
-        autoRefreshEnabled ? "Pause Refresh" : "Resume Refresh";
-    if (autoRefreshEnabled) loadDoctorQueue();
-}
-
-/**
  * acceptPatient calls the API to mark a patient as accepted by the doctor.
  */
 function acceptPatient(patientID) {
@@ -213,13 +160,6 @@ setInterval(loadDoctorQueue, 15000);
  */
 document.addEventListener("DOMContentLoaded", () => {
     loadDoctorQueue();
-    // requestNotificationPermission();
-
-    const toggleBtn = document.createElement("button");
-    toggleBtn.id = "toggle-refresh-btn";
-    toggleBtn.innerText = "Pause Refresh";
-    toggleBtn.style.margin = "10px";
-    toggleBtn.onclick = toggleAutoRefresh;
 
     // Places the toggle button above the doctorQueueContainer
     doctorQueueContainer.parentNode.insertBefore(toggleBtn, doctorQueueContainer);
