@@ -100,8 +100,6 @@ function loadDoctorQueue() {
                 // Highlights row if the patient status is "Please See Doctor"
                 if (patient.status === "Please See Doctor") {
                     row.style.backgroundColor = "#d4edda";
-                    triggerDoctorReadyAlert(patient.patientID);
-                    triggerDesktopNotification(patient);
                 }
 
                 // Appends row to the table body
