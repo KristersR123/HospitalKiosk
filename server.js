@@ -312,7 +312,7 @@ app.get('/hospitalA/patients-awaiting-triage', async (req, res) => {
 //    GET /hospitalA/waitlist
 //    Show the entire waiting list of non-discharged patients
 // ----------------------------------------------------------
-app.get('/hopsitalA/waitlist', async (req, res) => {
+app.get('/hospitalA/waitlist', async (req, res) => {
   try {
     const snapshot = await db.ref('hospitalA-patients').once('value'); // Get all patient data
 
