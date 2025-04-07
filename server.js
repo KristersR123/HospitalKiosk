@@ -90,7 +90,7 @@ async function monitorQueue(hospitalKey) {
     });
 
     if (Object.keys(updates).length > 0) {
-      await patientsRef.update(updates); // Commit updates to DB
+      await ref.update(updates); // Commit updates to DB
       console.log("⏱ Real-time queue decremented");
     }
   } catch (err) {
