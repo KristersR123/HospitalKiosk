@@ -46,8 +46,10 @@ const hospitalRefs = {
 // ===========================================
 // MONITOR REALTIME DB CHANGES
 // ===========================================
-patientsRef.on("child_changed", snapshot => {
-  console.log("Patient updated:", snapshot.val()); // Log changes to patients
+Object.entries(hospitalRefs).forEach(([key, ref]) => {
+  ref.on("child_changed", debounce(snapshot => {
+    console.log(`${key} patient updated:`, snapshot.val());
+  }, 1000));
 });
 
 // ===========================================
