@@ -113,13 +113,6 @@ async function monitorQueueLoop() {
 }
 monitorQueueLoop();
 
-// ===========================================
-// HELPER: GET DB REF BY HOSPITAL PARAM
-// ===========================================
-function getHospitalRef(hospital) {
-  return hospitalRefs[hospital] || null;
-}
-
 
 // ===========================================
 // CHECK WAIT TIMES ON STARTUP PER HOSPITAL
@@ -168,7 +161,7 @@ app.get('/hospitalA/patient-wait-time/:patientID', async (req, res) => {
     const { patientID } = req.params;  // Extract the patientID from URL params
     console.log(`Fetching wait time for patient: ${patientID}`);
 
-    const snapshot = await db.ref('hospitalA-patients').once('value'); // Fetch all patients from HospitalA DB
+    const snapshot = await db.ref('hospitalA/patients').once('value'); // Fetch all patients from HospitalA DB
 
     if (!snapshot.exists()) {
       console.log('No patients found in the database.');
@@ -208,7 +201,7 @@ app.get('/hospitalA/patient-wait-time/:patientID', async (req, res) => {
 // ----------------------------------------------------------
 app.get('/hospitalA/doctor-queue', async (req, res) => {
   try {
-    const snapshot = await db.ref('hospitalA-patients')
+    const snapshot = await db.ref('hospitalA/patients')
       .orderByChild('status') // Order by status
       .once('value');        // Fetch the data
 
@@ -248,7 +241,7 @@ app.get('/hospitalA/doctor-queue', async (req, res) => {
 // ----------------------------------------------------------
 app.get('/hospitalA/hospital-wait-time', async (req, res) => {
   try {
-    const snapshot = await db.ref('hospitalA-patients').once('value'); // Grab all patients
+    const snapshot = await db.ref('hospitalA/patients').once('value'); // Grab all patients
     if (!snapshot.exists()) {
       return res.json({ totalWait: 0, patientCount: 0 }); // No data, no queue
     }
@@ -282,7 +275,7 @@ app.get('/hospitalA/hospital-wait-time', async (req, res) => {
 // ----------------------------------------------------------
 app.get('/hospitalA/patients-awaiting-triage', async (req, res) => {
   try {
-    const snapshot = await db.ref('hospitalA-patients')
+    const snapshot = await db.ref('hospitalA/patients')
       .orderByChild('status')        // order by 'status'
       .equalTo('Waiting for Triage') // only want those awaiting triage
       .once('value');                // Execute the query
@@ -314,7 +307,7 @@ app.get('/hospitalA/patients-awaiting-triage', async (req, res) => {
 // ----------------------------------------------------------
 app.get('/hospitalA/waitlist', async (req, res) => {
   try {
-    const snapshot = await db.ref('hospitalA-patients').once('value'); // Get all patient data
+    const snapshot = await db.ref('hospitalA/patients').once('value'); // Get all patient data
 
     if (!snapshot.exists()) {
       return res.json([]); // Return empty array if no data
@@ -369,7 +362,7 @@ app.post('/hospitalA/check-in', async (req, res) => {
     const checkInTime = new Date().toISOString(); // Track time
 
     // Create a new entry in 'patients' collection
-    const newPatientRef = db.ref('hospitalA-patients').push();
+    const newPatientRef = db.ref('hospitalA/patients').push();
     await newPatientRef.set({
       firebaseKey: newPatientRef.key, // Store the DB key
       patientID,
@@ -401,7 +394,7 @@ app.post('/hospitalA/accept-patient', async (req, res) => {
     }
 
     // Search for the patient by their custom ID
-    const snapshot = await db.ref('hospitalA-patients').once('value');
+    const snapshot = await db.ref('hospitalA/patients').once('value');
     let firebaseKey = null;
 
     snapshot.forEach(childSnapshot => {
@@ -415,7 +408,7 @@ app.post('/hospitalA/accept-patient', async (req, res) => {
     }
 
     // Update the found patient: status -> 'With Doctor', store acceptedTime
-    const patientRef = db.ref(`hospitalA-patients/${firebaseKey}`);
+    const patientRef = db.ref(`hospitalA/patients/${firebaseKey}`);
     await patientRef.update({
       status: 'With Doctor',
       acceptedTime: new Date().toISOString()
@@ -441,7 +434,7 @@ app.post('/hospitalA/discharge-patient', async (req, res) => {
     }
 
     // Search for the matching patient record
-    const snapshot = await db.ref('hospitalA-patients').once('value');
+    const snapshot = await db.ref('hospitalA/patients').once('value');
     let firebaseKey = null;
 
     snapshot.forEach(childSnapshot => {
@@ -455,7 +448,7 @@ app.post('/hospitalA/discharge-patient', async (req, res) => {
     }
 
     // Update the patient's status to 'Discharged'
-    await db.ref(`hospitalA-patients/${firebaseKey}`).update({
+    await db.ref(`hospitalA/patients/${firebaseKey}`).update({
       status: 'Discharged',
       wasSeen: true,
       dischargedTime: new Date().toISOString()
@@ -489,7 +482,7 @@ app.post('/hospitalA/assign-severity', async (req, res) => {
     };
 
     const baseWaitTime = severityWaitTimes[severity] || 60; // default 60 if unknown
-    const patientsRef = db.ref('hospitalA-patients'); // Reference to 'patients'
+    const patientsRef = db.ref('hospitalA/patients'); // Reference to 'patients'
     const snapshot = await patientsRef.once('value'); // fetch all
 
     let foundPatientKey = null;
@@ -525,7 +518,7 @@ app.post('/hospitalA/assign-severity', async (req, res) => {
     const estimatedWaitTime = lastWaitTime + baseWaitTime;
 
     // Update the patient record with the new severity, wait time, status, and triageTime
-    await db.ref(`hospitalA-patients/${foundPatientKey}`).update({
+    await db.ref(`hospitalA/patients/${foundPatientKey}`).update({
       severity,
       estimatedWaitTime,
       status: `Queueing for ${severity}`,
@@ -553,7 +546,7 @@ app.post('/hospitalA/assign-condition', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const patientsRef = db.ref('hospitalA-patients'); // reference to the entire 'patients' list
+    const patientsRef = db.ref('hospitalA/patients'); // reference to the entire 'patients' list
     const snapshot = await patientsRef.once('value'); // fetch all
 
     let foundPatientKey = null;
@@ -569,14 +562,14 @@ app.post('/hospitalA/assign-condition', async (req, res) => {
     }
 
     // track how many have the same condition, to increment a queue number
-    const queueRef = db.ref(`hospitalA-queueNumbers/${condition}`);
+    const queueRef = db.ref(`hospitalA/queueNumbers/${condition}`);
     const queueSnapshot = await queueRef.once('value');
     const queueNumber = queueSnapshot.exists() ? queueSnapshot.val() + 1 : 1;
 
     console.log(`Assigning queue number: ${queueNumber} for condition: ${condition}`);
 
     // Update the patient's record with the new condition, queue number, etc.
-    await db.ref(`hospitalA-patients/${foundPatientKey}`).update({
+    await db.ref(`hospitalA/patients/${foundPatientKey}`).update({
       condition: condition,
       status: 'Waiting for Triage',
       queueNumber: queueNumber
@@ -606,7 +599,7 @@ app.get('/hospitalB/patient-wait-time/:patientID', async (req, res) => {
     const { patientID } = req.params;  // Extract the patientID from URL params
     console.log(`Fetching wait time for patient: ${patientID}`);
 
-    const snapshot = await db.ref('hospitalB-patients').once('value'); // Fetch all patients from HospitalA DB
+    const snapshot = await db.ref('hospitalB/patients').once('value'); // Fetch all patients from HospitalA DB
 
     if (!snapshot.exists()) {
       console.log('No patients found in the database.');
@@ -646,7 +639,7 @@ app.get('/hospitalB/patient-wait-time/:patientID', async (req, res) => {
 // ----------------------------------------------------------
 app.get('/hospitalB/doctor-queue', async (req, res) => {
   try {
-    const snapshot = await db.ref('hospitalB-patients')
+    const snapshot = await db.ref('hospitalB/patients')
       .orderByChild('status') // Order by status
       .once('value');        // Fetch the data
 
@@ -686,7 +679,7 @@ app.get('/hospitalB/doctor-queue', async (req, res) => {
 // ----------------------------------------------------------
 app.get('/hospitalB/hospital-wait-time', async (req, res) => {
   try {
-    const snapshot = await db.ref('hospitalB-patients').once('value'); // Grab all patients
+    const snapshot = await db.ref('hospitalB/patients').once('value'); // Grab all patients
     if (!snapshot.exists()) {
       return res.json({ totalWait: 0, patientCount: 0 }); // No data, no queue
     }
@@ -720,7 +713,7 @@ app.get('/hospitalB/hospital-wait-time', async (req, res) => {
 // ----------------------------------------------------------
 app.get('/hospitalB/patients-awaiting-triage', async (req, res) => {
   try {
-    const snapshot = await db.ref('hospitalB-patients')
+    const snapshot = await db.ref('hospitalB/patients')
       .orderByChild('status')        // order by 'status'
       .equalTo('Waiting for Triage') // only want those awaiting triage
       .once('value');                // Execute the query
@@ -752,7 +745,7 @@ app.get('/hospitalB/patients-awaiting-triage', async (req, res) => {
 // ----------------------------------------------------------
 app.get('/hospitalB/waitlist', async (req, res) => {
   try {
-    const snapshot = await db.ref('hospitalB-patients').once('value'); // Get all patient data
+    const snapshot = await db.ref('hospitalB/patients').once('value'); // Get all patient data
 
     if (!snapshot.exists()) {
       return res.json([]); // Return empty array if no data
@@ -807,7 +800,7 @@ try {
   const checkInTime = new Date().toISOString(); // Track time
 
   // Create a new entry in 'patients' collection
-  const newPatientRef = db.ref('hospitalB-patients').push();
+  const newPatientRef = db.ref('hospitalB/patients').push();
   await newPatientRef.set({
     firebaseKey: newPatientRef.key, // Store the DB key
     patientID,
@@ -839,7 +832,7 @@ app.post('/hospitalB/accept-patient', async (req, res) => {
     }
 
     // Search for the patient by their custom ID
-    const snapshot = await db.ref('hospitalB-patients').once('value');
+    const snapshot = await db.ref('hospitalB/patients').once('value');
     let firebaseKey = null;
 
     snapshot.forEach(childSnapshot => {
@@ -853,7 +846,7 @@ app.post('/hospitalB/accept-patient', async (req, res) => {
     }
 
     // Update the found patient: status -> 'With Doctor', store acceptedTime
-    const patientRef = db.ref(`hospitalB-patients/${firebaseKey}`);
+    const patientRef = db.ref(`hospitalB/patients/${firebaseKey}`);
     await patientRef.update({
       status: 'With Doctor',
       acceptedTime: new Date().toISOString()
@@ -879,7 +872,7 @@ app.post('/hospitalB/discharge-patient', async (req, res) => {
     }
 
     // Search for the matching patient record
-    const snapshot = await db.ref('hospitalB-patients').once('value');
+    const snapshot = await db.ref('hospitalB/patients').once('value');
     let firebaseKey = null;
 
     snapshot.forEach(childSnapshot => {
@@ -893,7 +886,7 @@ app.post('/hospitalB/discharge-patient', async (req, res) => {
     }
 
     // Update the patient's status to 'Discharged'
-    await db.ref(`hospitalB-patients/${firebaseKey}`).update({
+    await db.ref(`hospitalB/patients/${firebaseKey}`).update({
       status: 'Discharged',
       wasSeen: true,
       dischargedTime: new Date().toISOString()
@@ -927,7 +920,7 @@ app.post('/hospitalB/assign-severity', async (req, res) => {
     };
 
     const baseWaitTime = severityWaitTimes[severity] || 60; // default 60 if unknown
-    const patientsRef = db.ref('hospitalB-patients'); // Reference to 'patients'
+    const patientsRef = db.ref('hospitalB/patients'); // Reference to 'patients'
     const snapshot = await patientsRef.once('value'); // fetch all
 
     let foundPatientKey = null;
@@ -963,7 +956,7 @@ app.post('/hospitalB/assign-severity', async (req, res) => {
     const estimatedWaitTime = lastWaitTime + baseWaitTime;
 
     // Update the patient record with the new severity, wait time, status, and triageTime
-    await db.ref(`hospitalB-patients/${foundPatientKey}`).update({
+    await db.ref(`hospitalB/patients/${foundPatientKey}`).update({
       severity,
       estimatedWaitTime,
       status: `Queueing for ${severity}`,
@@ -991,7 +984,7 @@ try {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  const patientsRef = db.ref('hospitalB-patients'); // reference to the entire 'patients' list
+  const patientsRef = db.ref('hospitalB/patients'); // reference to the entire 'patients' list
   const snapshot = await patientsRef.once('value'); // fetch all
 
   let foundPatientKey = null;
@@ -1007,14 +1000,14 @@ try {
   }
 
   // track how many have the same condition, to increment a queue number
-  const queueRef = db.ref(`hospitalB-queueNumbers/${condition}`);
+  const queueRef = db.ref(`hospitalB/queueNumbers/${condition}`);
   const queueSnapshot = await queueRef.once('value');
   const queueNumber = queueSnapshot.exists() ? queueSnapshot.val() + 1 : 1;
 
   console.log(`Assigning queue number: ${queueNumber} for condition: ${condition}`);
 
   // Update the patient's record with the new condition, queue number, etc.
-  await db.ref(`hospitalB-patients/${foundPatientKey}`).update({
+  await db.ref(`hospitalB/patients/${foundPatientKey}`).update({
     condition: condition,
     status: 'Waiting for Triage',
     queueNumber: queueNumber
