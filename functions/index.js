@@ -1,16 +1,3 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * const { onCall } = require("firebase-functions/v2/https");
- * const { onDocumentWritten } = require("firebase-functions/v2/firestore");
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
-// The "onRequest" and "logger" below are examples from firebase-functions v2, though not used in this snippet.
-const { onRequest } = require("firebase-functions/v2/https"); // Example import for HTTPS trigger
-const logger = require("firebase-functions/logger");         // Example logger for Firebase
-
 //'functions' from firebase-functions/v1 for a Realtime Database trigger
 const functions = require("firebase-functions/v1"); // Import V1 style Cloud Functions from firebase
 const admin = require("firebase-admin");            // Admin SDK for server access to Firebase
@@ -33,99 +20,88 @@ const severityWaitTimes = {
 };
 
 // ===========================================
-// CLOUD FUNCTION TRIGGER: adjustWaitTimesOnDischarge
+// SHARED FUNCTION TO ADJUST WAIT TIMES
 // ===========================================
-/**
- * Triggered whenever a child within '/patients/{patientId}' is updated.
- * used .onUpdate(...) so it fires if an existing patient changes data.
- */
-exports.adjustWaitTimesOnDischarge = functions.database
-  .ref("/patients/{patientId}") // Path in Realtime DB
-  .onUpdate(async (change, context) => {
-    // Grab the 'before' and 'after' snapshots from the update
-    const patientBefore = change.before.val(); // Data prior to update
-    const patientAfter = change.after.val();   // Data after update
+async function adjustWaitTimes(hospitalPath, change, context) {
+  const patientBefore = change.before.val(); // Get patient data before the update
+  const patientAfter = change.after.val();   // Get patient data after the update
 
-    // only act if the status changed from "With Doctor" to "Discharged"
-    if (
-      patientBefore.status === "With Doctor" &&
-      patientAfter.status === "Discharged"
-    ) {
-      console.log("Triggered adjustWaitTimesOnDischarge");
+  // Check if the patient was with the doctor and now has been discharged
+  if (
+    patientBefore.status === "With Doctor" &&
+    patientAfter.status === "Discharged"
+  ) {
+    const baseWaitTime = severityWaitTimes[patientBefore.severity] || 0; // Get expected base wait time for severity
+    const acceptedTime = new Date(patientBefore.acceptedTime).getTime(); // Time patient was accepted
+    const now = Date.now();                                              // Current system time
+    const actualTime = Math.floor((now - acceptedTime) / 60000);         // Calculate actual time with doctor in minutes
+    const extraTime = actualTime - baseWaitTime;                         // Calculate the time difference from expected
 
-      // Base wait time is derived from severityWaitTimes, defaulting to 0 if not found
-      const baseWaitTime = severityWaitTimes[patientBefore.severity] || 0;
+    // If no difference in time, no need to adjust others
+    if (extraTime === 0) return null;
 
-      // acceptedTime indicates when the doctor accepted the patient
-      const acceptedTime = new Date(patientBefore.acceptedTime).getTime();
-      // now is the current time in ms
-      const now = Date.now();
-      // actualTime is the total minutes the patient spent with the doctor
-      const actualTime = Math.floor((now - acceptedTime) / 60000);
+    const patientsRef = admin.database().ref(hospitalPath); // Reference to hospital-specific patient list
+    const snapshot = await patientsRef.once("value");        // Fetch all patient data in this hospital
 
-      // extraTime = actualTime (spent) - baseWaitTime (expected)
-      // If positive => took longer than expected
-      // If negative => finished earlier than expected
-      const extraTime = actualTime - baseWaitTime;
+    let doctorStillBusy = false; // To track if another doctor is still handling the same condition/severity
+    const updates = {};          // Object to store updates for estimated wait times
 
-      if (extraTime === 0) {
-        console.log("⏱ No adjustment needed (doctor took expected time).");
-        return null; // If no difference in time, skip
+    // Loop through all patients to check if another doctor is still handling similar patient
+    snapshot.forEach((snap) => {
+      const p = snap.val(); // Get patient data
+      if (
+        p.status === "With Doctor" &&                             // Doctor is still busy
+        p.condition === patientBefore.condition &&               // Same condition
+        p.severity === patientBefore.severity                    // Same severity
+      ) {
+        doctorStillBusy = true; // Found a similar patient still being handled
       }
+    });
 
-      // fetch the entire '/patients' dataset to see who else is waiting
-      const patientsRef = admin.database().ref("/patients");
-      const patientsSnapshot = await patientsRef.once("value");
+    // If a doctor is still busy with another similar patient, don't adjust queue
+    if (doctorStillBusy) return null;
 
-      let doctorStillBusy = false; // track if there's another doc in the same group
-      const updates = {};          // store updates to wait times here
+    // Loop through patients again to adjust wait times for queued patients
+    snapshot.forEach((snap) => {
+      const p = snap.val();   // Get patient
+      const key = snap.key;   // Firebase key
 
-      // First pass: check if any other doc is busy with the same condition + severity
-      patientsSnapshot.forEach((snap) => {
-        const p = snap.val();
-        // If a doc is 'With Doctor' for the same condition/severity, don't adjust
-        if (
-          p.status === "With Doctor" &&
-          p.condition === patientBefore.condition &&
-          p.severity === patientBefore.severity
-        ) {
-          doctorStillBusy = true;
-        }
-      });
-
-      if (doctorStillBusy) {
-        console.log("⚠ Doctor still busy with similar patient — skipping adjustment.");
-        return null; // If so, do nothing
+      // Only adjust wait time if patient is still waiting or just about to see doctor
+      if (
+        (p.status?.startsWith("Queueing for") || p.status === "Please See Doctor") &&
+        p.condition === patientBefore.condition &&
+        p.severity === patientBefore.severity
+      ) {
+        const currentWait = p.estimatedWaitTime || 0;                  // Get current wait time
+        const newWait = Math.max(currentWait + extraTime, 0);         // Adjust wait time with extraTime, ensure it's not negative
+        updates[`${key}/estimatedWaitTime`] = newWait;                // Add update to batch
       }
+    });
 
-      // Second pass: for all patients still queueing or 'Please See Doctor' with the same condition+severity
-      patientsSnapshot.forEach((snap) => {
-        const patient = snap.val();
-        const key = snap.key;
-
-        // only adjust patients in the same group who are queueing or waiting
-        if (
-          (patient.status?.startsWith("Queueing for") ||
-            patient.status === "Please See Doctor") &&
-          patient.condition === patientBefore.condition &&
-          patient.severity === patientBefore.severity
-        ) {
-          const currentWait = patient.estimatedWaitTime || 0;
-          // newWait is the adjusted wait time
-          const newWait = Math.max(currentWait + extraTime, 0);
-          updates[`${key}/estimatedWaitTime`] = newWait; // Store in updates
-        }
-      });
-
-      // If there's anything to update, commit it
-      if (Object.keys(updates).length > 0) {
-        await patientsRef.update(updates);
-        console.log(
-          `Updated wait times by ${extraTime > 0 ? "+" : ""}${extraTime} mins.`
-        );
-      }
+    // Apply all updates to database at once
+    if (Object.keys(updates).length > 0) {
+      await patientsRef.update(updates); // Commit all updates to Firebase DB
+      console.log(
+        `[${hospitalPath}] Adjusted wait times by ${extraTime} minutes.`
+      );
     }
+  }
 
-    return null; // End of the function
-  });
-f
+  return null; // End the function
+}
+
+// ===========================================
+// HOSPITAL A CLOUD FUNCTION
+// ===========================================
+// Triggered when any patient record under /hospitalA-patients/{patientId} is updated
+exports.adjustWaitTimesHospitalA = functions.database
+  .ref("/hospitalA-patients/{patientId}") // Path to watch
+  .onUpdate((change, context) => adjustWaitTimes("hospitalA-patients", change, context)); // Use shared logic
+
+// ===========================================
+// HOSPITAL B CLOUD FUNCTION
+// ===========================================
+// Triggered when any patient record under /hospitalB-patients/{patientId} is updated
+exports.adjustWaitTimesHospitalB = functions.database
+  .ref("/hospitalB-patients/{patientId}") // Path to watch
+  .onUpdate((change, context) => adjustWaitTimes("hospitalB-patients", change, context)); // Use shared logic
