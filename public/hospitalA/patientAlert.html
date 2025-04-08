@@ -95,7 +95,8 @@
   <script>
     const params = new URLSearchParams(window.location.search);
     const patientID = params.get("patientID");
-    document.getElementById("patientID").textContent = patientID || "Unknown";
+    const fallbackID = sessionStorage.getItem("customPatientID");
+    document.getElementById("patientID").textContent = patientID || fallbackID || "Unknown";
 
     setTimeout(() => {
       window.location.href = "index.html";
