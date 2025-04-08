@@ -102,6 +102,7 @@ function loadWaitlistRealTime() {
                     // Populates the list item with queue position and initial wait time
                     listItem.innerHTML = `
                         <div class="queue-patient">
+                            Patient ID: <strong>${patient.patientID}</strong><br>
                             Queue Position: <span class="queue-pos">#${patient.queueNumber}</span><br>
                             Estimated Wait Time: <span id="countdown-${patient.patientID}" class="countdown">${Math.floor(waitTime)} min</span>
                         </div>
