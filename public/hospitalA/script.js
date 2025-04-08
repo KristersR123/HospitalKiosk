@@ -111,7 +111,6 @@ function confirmSelection() {
             // Save the queue number and patientID to session storage
             sessionStorage.setItem("queueNumber", data.queueNumber);
 
-            // Save from response not session (this is key!)
             if (data.customPatientID) {
                 sessionStorage.setItem("customPatientID", data.customPatientID);
                 window.location.href = `patientAlert.html?patientID=${encodeURIComponent(data.customPatientID)}`;

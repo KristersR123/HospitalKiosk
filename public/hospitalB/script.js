@@ -108,9 +108,15 @@ function confirmSelection() {
 
         // Checks if the backend assigned a valid queue number
         if (data.success && data.queueNumber !== undefined) {
-            alert(`Your condition has been submitted!\nYour queue number: #${data.queueNumber}`);
-            // Returns to the main page after successful assignment
-            window.location.href = "index.html";
+            // Save the queue number and patientID to session storage
+            sessionStorage.setItem("queueNumber", data.queueNumber);
+
+            if (data.customPatientID) {
+                sessionStorage.setItem("customPatientID", data.customPatientID);
+                window.location.href = `patientAlert.html?patientID=${encodeURIComponent(data.customPatientID)}`;
+            } else {
+                alert("Missing patient ID. Please try again.");
+            }
         } else {
             alert("Error: Queue number not assigned. Please try again.");
         }
