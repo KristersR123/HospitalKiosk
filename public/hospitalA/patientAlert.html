@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Check-In Confirmed</title>
+  <link rel="icon" href="images/logo.png" type="image/png">
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #e3f2fd;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      animation: fadeIn 1s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    .alert-box {
+      background: white;
+      padding: 40px 60px;
+      border-radius: 20px;
+      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+      text-align: center;
+      border: 3px solid #007bff;
+      max-width: 600px;
+    }
+
+    .alert-box img.logo {
+      width: 80px;
+      margin-bottom: 20px;
+    }
+
+    .alert-box h1 {
+      font-size: 28px;
+      color: #007bff;
+      margin-bottom: 10px;
+    }
+
+    .alert-box .label {
+      font-size: 20px;
+      color: #333;
+    }
+
+    .alert-box .highlight {
+      font-size: 32px;
+      font-weight: bold;
+      color: #004085;
+      margin: 10px 0 25px;
+      background-color: #dbe9f9;
+      padding: 12px 25px;
+      border-radius: 10px;
+      display: inline-block;
+    }
+
+    .alert-box .message {
+      font-size: 18px;
+      color: #444;
+      margin-bottom: 10px;
+    }
+
+    .dots::after {
+      content: '';
+      display: inline-block;
+      animation: dots 1.5s steps(3, end) infinite;
+    }
+
+    @keyframes dots {
+      0%   { content: ''; }
+      33%  { content: '.'; }
+      66%  { content: '..'; }
+      100% { content: '...'; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="alert-box">
+    <img src="images/logo.png" alt="Logo" class="logo" />
+    <h1>You're Checked In!</h1>
+    <div class="label">Your Patient ID:</div>
+    <div class="highlight" id="patientID">Loading...</div>
+    <div class="message">Please take a seat.<br>A triage nurse will be with you shortly.</div>
+    <div class="message dots">Redirecting</div>
+  </div>
+
+  <script>
+    const patientID = sessionStorage.getItem("customPatientID") || "Unknown";
+    document.getElementById("patientID").textContent = patientID;
+
+    setTimeout(() => {
+      window.location.href = "index.html";
+    }, 5000);
+  </script>
+</body>
+</html>

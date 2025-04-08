@@ -95,13 +95,13 @@ async function adjustWaitTimes(hospitalPath, change, context) {
 // ===========================================
 // Triggered when any patient record under /hospitalA-patients/{patientId} is updated
 exports.adjustWaitTimesHospitalA = functions.database
-  .ref("/hospitalA-patients/{patientId}") // Path to watch
-  .onUpdate((change, context) => adjustWaitTimes("hospitalA-patients", change, context)); // Use shared logic
+  .ref("/hospitalA/patients/{patientId}") // Path to watch
+  .onUpdate((change, context) => adjustWaitTimes("hospitalA/patients", change, context)); // Use shared logic
 
 // ===========================================
 // HOSPITAL B CLOUD FUNCTION
 // ===========================================
 // Triggered when any patient record under /hospitalB-patients/{patientId} is updated
 exports.adjustWaitTimesHospitalB = functions.database
-  .ref("/hospitalB-patients/{patientId}") // Path to watch
-  .onUpdate((change, context) => adjustWaitTimes("hospitalB-patients", change, context)); // Use shared logic
+  .ref("/hospitalB/patients/{patientId}") // Path to watch
+  .onUpdate((change, context) => adjustWaitTimes("hospitalB/patients", change, context)); // Use shared logic
