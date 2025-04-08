@@ -932,6 +932,7 @@ app.post('/hospitalB/assign-severity', async (req, res) => {
     let foundPatientKey = null;
     let condition = null;
     let lastWaitTime = 0;
+    let lastQueueNumber = 0;
 
     // First, find the correct patient record
     snapshot.forEach(childSnapshot => {
@@ -960,13 +961,15 @@ app.post('/hospitalB/assign-severity', async (req, res) => {
 
     // The estimated wait time for this patient is the largest found + baseWaitTime
     const estimatedWaitTime = lastWaitTime + baseWaitTime;
+    const queueNumber = lastQueueNumber + 1;
 
     // Update the patient record with the new severity, wait time, status, and triageTime
     await db.ref(`hospitalB/patients/${foundPatientKey}`).update({
       severity,
       estimatedWaitTime,
       status: `Queueing for ${severity}`,
-      triageTime: new Date().toISOString()
+      triageTime: new Date().toISOString(),
+      queueNumber
     });
 
     console.log(`Severity assigned for patient ${patientID} with wait time ${estimatedWaitTime} min.`);
