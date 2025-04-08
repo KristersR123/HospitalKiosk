@@ -1016,8 +1016,9 @@ try {
 
   // Save back the updated queue number so future patients get the next number
   await queueRef.set(queueNumber);
+  const patientData = snapshot.child(foundPatientKey).val();
 
-  res.json({ success: true, queueNumber });
+  res.json({success: true, queueNumber,customPatientID: patientData.patientID});
 } catch (error) {
   console.error('Error assigning condition:', error);
   res.status(500).json({ error: 'Internal server error' });
