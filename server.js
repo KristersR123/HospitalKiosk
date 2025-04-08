@@ -579,7 +579,7 @@ app.post('/hospitalA/assign-condition', async (req, res) => {
     await queueRef.set(queueNumber);
     const patientData = snapshot.child(foundPatientKey).val();
 
-    res.json({success: true, queueNumber, customPatientID: patientData.customPatientID || null});
+    res.json({success: true, queueNumber,customPatientID: patientData.patientID});
   } catch (error) {
     console.error('Error assigning condition:', error);
     res.status(500).json({ error: 'Internal server error' });
