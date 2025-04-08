@@ -112,8 +112,8 @@ function confirmSelection() {
             sessionStorage.setItem("queueNumber", data.queueNumber);
         
             // Redirect to patient alert page with patientID and queue number as query parameters
-            const patientID = sessionStorage.getItem("customPatientID");
-            window.location.href = `patientAlert.html?patientID=${patientID}&queueNumber=${data.queueNumber}`;
+            const customPatientID = sessionStorage.getItem("customPatientID");
+            window.location.href = `patientAlert.html?patientID=${customPatientID}`;
         } else {
             alert("Error: Queue number not assigned. Please try again.");
         }
