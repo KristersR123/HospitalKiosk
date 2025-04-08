@@ -93,8 +93,9 @@
   </div>
 
   <script>
-    const patientID = sessionStorage.getItem("customPatientID") || "Unknown";
-    document.getElementById("patientID").textContent = patientID;
+    const params = new URLSearchParams(window.location.search);
+    const patientID = params.get("patientID");
+    document.getElementById("patientID").textContent = patientID || "Unknown";
 
     setTimeout(() => {
       window.location.href = "index.html";
